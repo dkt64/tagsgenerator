@@ -103,6 +103,11 @@ func main() {
 // "SiemensTCPIP.UKL-01.MxR4Gestartet",100,Boolean,0.000000,0,1,1
 // "SiemensTCPIP.UKL-01.MxR4Kappenfraesen",100,Boolean,0.000000,0,1,1
 // "SiemensTCPIP.UKL-01.QxR1E41PgnoBit0",100,Boolean,0.000000,0,1,1
+//
+// "SiemensTCPIP.LivePLC01.Inputs",100,Byte Array,0.000000,0,0,1
+// "SiemensTCPIP.LivePLC01.Merkers",100,Byte Array,0.000000,0,0,1
+// "SiemensTCPIP.LivePLC01.Outputs",100,Byte Array,0.000000,0,0,1
+//
 // ================================================================================================
 // UKL-01.csv
 // Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value
@@ -119,6 +124,11 @@ func main() {
 // "VD.Tisch[3].V.Schnittstelle.HandBedienungAktiv","DB17,X1474.0",Boolean,1,R/W,100,,,,,,,,,,"Handbedienung ist aktiv",
 // "VD.Tisch[3].V.Schnittstelle.Auswerfer.Aktiv","DB17,X1472.0",Boolean,1,R/W,100,,,,,,,,,,"Aktiv",
 // "VD.Tisch[3].V.Schnittstelle.Auswerfer.Error","DB17,X1472.3",Boolean,1,R/W,100,,,,,,,,,,"Störung",
+//
+// "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+//
 // ================================================================================================
 // Symbols.asc
 // 126,DiF_FSPS                DB      1   FB      1 Instanz DB FSPS
