@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // ErrCheck - obsługa błedów
@@ -50,12 +51,69 @@ func writeLines(lines []string, path string) error {
 	return w.Flush()
 }
 
+// decodeLine - rozdzielenie pól w linii
+// ================================================================================================
+func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldTyp string, sFieldCom string) {
+	startingIndex := strings.Index(s, ",") + 1
+
+	s1 := s[startingIndex:len(s)]
+
+	sFildSym = s1[0:24]
+
+	lineRest := s1[24:len(s1)]
+	fields := strings.Fields(lineRest)
+
+	if len(fields) > 0 {
+		sFieldPer = fields[0]
+	}
+	var add string
+	if len(fields) > 1 {
+		add = fields[1]
+	}
+	if len(fields) > 2 {
+		sFieldTyp = fields[2]
+	}
+
+	if len(fields) > 3 {
+		for i := 3; i < len(fields); i++ {
+			sFieldCom = sFieldCom + fields[i] + " "
+		}
+		sFieldCom = sFieldCom[0 : len(sFieldCom)-1]
+	}
+
+	addHILO := strings.Split(add, ".")
+
+	if len(addHILO) > 0 {
+		sFieldAddHI = addHILO[0]
+	}
+	if len(addHILO) > 1 {
+		sFieldAddLO = addHILO[1]
+	}
+
+	return
+}
+
 // generate - funkcja główna
 // ================================================================================================
-func generate(sym []string) (plc []string, iot []string, err error) {
+func generate(symLine []string) (plc []string, iot []string, err error) {
 
 	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 	iot = append(iot, "Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,")
+
+	line := symLine[150]
+
+	fmt.Println("Decoding  :", line)
+	sym, per, addHI, addLO, typ, com := decodeLine(line)
+	fmt.Println("Symbol    :", sym)
+	fmt.Println("Peripheral:", per)
+	fmt.Println("AddressHI :", addHI)
+	fmt.Println("AddressLO :", addLO)
+	fmt.Println("Type      :", typ)
+	fmt.Println("Comment   :", com)
+
+	if per == "I" && typ == "BOOL" && addHI != "" {
+		fmt.Println("It's BOOL input")
+	}
 
 	return plc, iot, nil
 }
@@ -70,9 +128,9 @@ func main() {
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	symFilename := flag.String("sym", "Symbols.asc", "Symbol table filename (Symbols.asc if not defined)")
-	plcFilename := flag.String("plc", "plc.csv", "Symbol table filename (Symbols.asc if not defined)")
-	iotFilename := flag.String("iot", "iot.csv", "Symbol table filename (Symbols.asc if not defined)")
+	symFilename := flag.String("sym", "Symbols.asc", "Step7 symbol table filename (Symbols.asc if not defined)")
+	plcFilename := flag.String("plc", "plc.csv", "PLC tags filename (plc.csv if not defined)")
+	iotFilename := flag.String("iot", "iot.csv", "IoT Gateway tags filename (iot.csv if not defined)")
 
 	flag.Parse()
 
@@ -91,44 +149,6 @@ func main() {
 
 }
 
-// ================================================================================================
-// gedia-test-iothub30321.csv
-// ;
-// ; IOTItem
-// ;
-// Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,
-// "SiemensTCPIP.UKL-01.Blad spawarki robota 4",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.IbR1PunktNr",100,Byte,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.IxKW1-1A0:1/2",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.MxR4Gestartet",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.MxR4Kappenfraesen",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.QxR1E41PgnoBit0",100,Boolean,0.000000,0,1,1
-//
-// "SiemensTCPIP.LivePLC01.Inputs",100,Byte Array,0.000000,0,0,1
-// "SiemensTCPIP.LivePLC01.Merkers",100,Byte Array,0.000000,0,0,1
-// "SiemensTCPIP.LivePLC01.Outputs",100,Byte Array,0.000000,0,0,1
-//
-// ================================================================================================
-// UKL-01.csv
-// Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value
-// "Blad spawarki robota 4","MX70.0",Boolean,1,R/W,100,,,,,,,,,,"",
-// "Blad spawarki robota 5","MX70.1",Boolean,1,R/W,100,,,,,,,,,,"",
-// "HmFpMitOhneStrom","MX4.3",Boolean,1,R/W,100,,,,,,,,,,"Mit/Ohne Strom",
-// "IxR1A41PgnoBit0","IX402.0",Boolean,1,R/W,100,,,,,,,,,,"R1: Bit 0 (1) Programmnummer",
-// "MbStörungen105-112","MBYTE113",Byte,1,R/W,100,,,,,,,,,,"MbStörungen105-112",
-// "MBTakt","MBYTE3",Byte,1,R/W,100,,,,,,,,,,"Taktmerkerbyte von CPU",
-// "MxAbAct_Sl","MDINT90",Long,1,R/W,100,,,,,,,,,,"DP: Abwahl Slave aktiv",
-// "MxR1Schweissfehler","MX51.4",Boolean,1,R/W,100,,,,,,,,,,"R1: Schweissfehler",
-// "QxR2E105","QX430.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Gruppe 1 Auf",
-// "QxR2E41PgnoBit0","QX422.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Bit 0 (1) Programmnummer",
-// "VD.Tisch[3].V.Schnittstelle.HandBedienungAktiv","DB17,X1474.0",Boolean,1,R/W,100,,,,,,,,,,"Handbedienung ist aktiv",
-// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Aktiv","DB17,X1472.0",Boolean,1,R/W,100,,,,,,,,,,"Aktiv",
-// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Error","DB17,X1472.3",Boolean,1,R/W,100,,,,,,,,,,"Störung",
-//
-// "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
-// "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
-// "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
-//
 // ================================================================================================
 // Symbols.asc
 // 126,DiF_FSPS                DB      1   FB      1 Instanz DB FSPS
@@ -157,4 +177,43 @@ func main() {
 // 126,TTimeoutRolltor         T      40   TIMER     Rolltor:Timeout
 // 126,VG                      UDT     1   UDT     1 Daten für Vorrichtung
 // 126,VAT_Ocena WCD           VAT     2
+//
+// ================================================================================================
+// UKL-01.csv
+// Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value
+// "Blad spawarki robota 4","MX70.0",Boolean,1,R/W,100,,,,,,,,,,"",
+// "Blad spawarki robota 5","MX70.1",Boolean,1,R/W,100,,,,,,,,,,"",
+// "HmFpMitOhneStrom","MX4.3",Boolean,1,R/W,100,,,,,,,,,,"Mit/Ohne Strom",
+// "IxR1A41PgnoBit0","IX402.0",Boolean,1,R/W,100,,,,,,,,,,"R1: Bit 0 (1) Programmnummer",
+// "MbStörungen105-112","MBYTE113",Byte,1,R/W,100,,,,,,,,,,"MbStörungen105-112",
+// "MBTakt","MBYTE3",Byte,1,R/W,100,,,,,,,,,,"Taktmerkerbyte von CPU",
+// "MxAbAct_Sl","MDINT90",Long,1,R/W,100,,,,,,,,,,"DP: Abwahl Slave aktiv",
+// "MxR1Schweissfehler","MX51.4",Boolean,1,R/W,100,,,,,,,,,,"R1: Schweissfehler",
+// "QxR2E105","QX430.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Gruppe 1 Auf",
+// "QxR2E41PgnoBit0","QX422.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Bit 0 (1) Programmnummer",
+// "VD.Tisch[3].V.Schnittstelle.HandBedienungAktiv","DB17,X1474.0",Boolean,1,R/W,100,,,,,,,,,,"Handbedienung ist aktiv",
+// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Aktiv","DB17,X1472.0",Boolean,1,R/W,100,,,,,,,,,,"Aktiv",
+// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Error","DB17,X1472.3",Boolean,1,R/W,100,,,,,,,,,,"Störung",
+//
+// "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+//
+// ================================================================================================
+// gedia-test-iothub30321.csv
+// ;
+// ; IOTItem
+// ;
+// Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,
+// "SiemensTCPIP.UKL-01.Blad spawarki robota 4",100,Boolean,0.000000,0,1,1
+// "SiemensTCPIP.UKL-01.IbR1PunktNr",100,Byte,0.000000,0,1,1
+// "SiemensTCPIP.UKL-01.IxKW1-1A0:1/2",100,Boolean,0.000000,0,1,1
+// "SiemensTCPIP.UKL-01.MxR4Gestartet",100,Boolean,0.000000,0,1,1
+// "SiemensTCPIP.UKL-01.MxR4Kappenfraesen",100,Boolean,0.000000,0,1,1
+// "SiemensTCPIP.UKL-01.QxR1E41PgnoBit0",100,Boolean,0.000000,0,1,1
+//
+// "SiemensTCPIP.LivePLC01.Inputs",100,Byte Array,0.000000,0,0,1
+// "SiemensTCPIP.LivePLC01.Merkers",100,Byte Array,0.000000,0,0,1
+// "SiemensTCPIP.LivePLC01.Outputs",100,Byte Array,0.000000,0,0,1
+//
 // ================================================================================================

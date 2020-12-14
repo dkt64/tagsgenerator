@@ -1,0 +1,14 @@
+========================================================================================
+=                             Tags Generator / DTP                                     =
+=  Generator of tags in form of csv configuration files for KepServerEX6 + IoTGateway  =
+========================================================================================
+
+126,IxV1-S1.1-1_1           I     100.0 BOOL      V1: P1.1 Spanner auf                                                            
+3
+IxV1-S1.1-1_1           I     100.0 BOOL      V1: P1.1 Spanner auf                                                            
+Peripheral: I
+Address   : 100.0
+Type      : BOOL
+Comment   : V1: P1.1 Spanner auf
+
+Writing files: plc.csv iot.csv ...
