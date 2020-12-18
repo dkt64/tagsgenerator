@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -53,7 +54,7 @@ func writeLines(lines []string, path string) error {
 
 // decodeLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldTyp string, sFieldCom string) {
+func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 	startingIndex := strings.Index(s, ",") + 1
 
 	s1 := s[startingIndex:len(s)]
@@ -71,7 +72,7 @@ func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string
 		add = fields[1]
 	}
 	if len(fields) > 2 {
-		sFieldTyp = fields[2]
+		sFieldsTyp = fields[2]
 	}
 
 	if len(fields) > 3 {
@@ -93,27 +94,75 @@ func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string
 	return
 }
 
-// generate - funkcja główna
+// prepPLCImageBlocks - wygenerowanie listy tagów w blokach na podstawie obrazu zajętości
+// plc = prepPLCImageBlocks(iImage, "IB", bSize, freq)
 // ================================================================================================
-func generate(symLine []string) (plc []string, iot []string, err error) {
+func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int) (outLines []string) {
 
-	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
+	var imagePtr1 int
+	for imagePtr1 = 0; imagePtr1 < 65535-blockSize; imagePtr1 += blockSize {
+		found := false
+		for imagePtr2 := 0; imagePtr2 < blockSize; imagePtr2++ {
+			if image[imagePtr1+imagePtr2] > 0 {
+				found = true
+			}
+		}
+		if found {
+			line := fmt.Sprintf("\"tab%s%d\",\"%s%d[%d]\",Byte Array,1,R,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, blockSize, freq)
+			outLines = append(outLines, line)
+		}
+	}
+
+	return
+}
+
+// generateOut - funkcja główna
+// "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
+// ================================================================================================
+func generateOut(symLine []string, bSize int, cName string, freq int) (plc []string, iot []string, err error) {
+
+	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data sType,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 	iot = append(iot, "Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,")
 
-	line := symLine[150]
+	var iImage [65535]byte
+	var mImage [65535]byte
+	var oImage [65535]byte
 
-	fmt.Println("Decoding  :", line)
-	sym, per, addHI, addLO, typ, com := decodeLine(line)
-	fmt.Println("Symbol    :", sym)
-	fmt.Println("Peripheral:", per)
-	fmt.Println("AddressHI :", addHI)
-	fmt.Println("AddressLO :", addLO)
-	fmt.Println("Type      :", typ)
-	fmt.Println("Comment   :", com)
+	// Wypełnienie obrazów
+	for _, line := range symLine {
 
-	if per == "I" && typ == "BOOL" && addHI != "" {
-		fmt.Println("It's BOOL input")
+		// fmt.Println("Decoding  :", line)
+		// sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeLine(line)
+		// fmt.Println("Symbol    :", sSymbol)
+		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("AddressHI :", sAddHI)
+		// fmt.Println("AddressLO :", sAddLO)
+		// fmt.Println("Type      :", sType)
+		// fmt.Println("Comment   :", sComment)
+
+		_, sPer, sAddHI, _, _, _ := decodeLine(line)
+
+		byteNr, err := strconv.ParseInt(sAddHI, 10, 16)
+
+		if ErrCheck(err) && sAddHI != "" {
+			if sPer == "I" || sPer == "IB" || sPer == "IW" || sPer == "ID" {
+				iImage[byteNr] = 1
+			}
+			if sPer == "M" || sPer == "MB" || sPer == "MW" || sPer == "MD" {
+				mImage[byteNr] = 1
+			}
+			if sPer == "Q" || sPer == "QB" || sPer == "QW" || sPer == "QD" {
+				oImage[byteNr] = 1
+			}
+		}
 	}
+
+	// Pakowanie w bloki
+	plc = append(plc, prepPLCImageBlocks(iImage, "IB", bSize, freq)...)
+	plc = append(plc, prepPLCImageBlocks(mImage, "MB", bSize, freq)...)
+	plc = append(plc, prepPLCImageBlocks(oImage, "QB", bSize, freq)...)
 
 	return plc, iot, nil
 }
@@ -123,20 +172,23 @@ func generate(symLine []string) (plc []string, iot []string, err error) {
 func main() {
 
 	fmt.Println("========================================================================================")
-	fmt.Println("=                             Tags Generator / DTP                                     =")
+	fmt.Println("=                       Siemens PLC tags generator / DTP                               =")
 	fmt.Println("=  Generator of tags in form of csv configuration files for KepServerEX6 + IoTGateway  =")
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	symFilename := flag.String("sym", "Symbols.asc", "Step7 symbol table filename (Symbols.asc if not defined)")
-	plcFilename := flag.String("plc", "plc.csv", "PLC tags filename (plc.csv if not defined)")
-	iotFilename := flag.String("iot", "iot.csv", "IoT Gateway tags filename (iot.csv if not defined)")
+	symFilename := flag.String("s", "Symbols.asc", "Step7 symbol table filename (Symbols.asc if not defined)")
+	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (plc.csv if not defined)")
+	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename (iot.csv if not defined)")
+	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description (SiemensTCPIP.PLC) if not defined")
+	blockSize := flag.Int("b", 8, "Block size in bytes (8 bytes if not defined)")
+	pollFreq := flag.Int("f", 100, "Frequency of polling in [ms] (100 ms if not defined)")
 
 	flag.Parse()
 
 	symIn, _ := readLines(*symFilename)
 
-	plcOut, iotOut, err := generate(symIn)
+	plcOut, iotOut, err := generateOut(symIn, *blockSize, *connectionName, *pollFreq)
 
 	if ErrCheck(err) {
 		fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
@@ -204,7 +256,7 @@ func main() {
 // ;
 // ; IOTItem
 // ;
-// Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,
+// Server Tag,Scan Rate,Data sType,Deadband,Send Every Scan,Enabled,Use Scan Rate,
 // "SiemensTCPIP.UKL-01.Blad spawarki robota 4",100,Boolean,0.000000,0,1,1
 // "SiemensTCPIP.UKL-01.IbR1PunktNr",100,Byte,0.000000,0,1,1
 // "SiemensTCPIP.UKL-01.IxKW1-1A0:1/2",100,Boolean,0.000000,0,1,1
