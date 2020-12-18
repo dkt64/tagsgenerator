@@ -116,15 +116,35 @@ func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int)
 	return
 }
 
-// generateOut - funkcja główna
+// generateIOT - funkcja generująca plik iot
+// "tabIB0","IB0[8]",Byte Array,1,R,100,,,,,,,,,,"",
+// "SiemensTCPIP.LivePLC01.tabIB0",100,Byte Array,0.000000,0,0,1
+// ================================================================================================
+func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
+	iot = append(iot, "Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,")
+	for _, line := range plc {
+
+		if strings.Contains(line, "\"") && strings.Contains(line, ",") {
+			fields := strings.Split(line, ",")
+
+			tagName := fields[0][1 : len(fields[0])-1]
+
+			outLine := fmt.Sprintf("\"%s.%s\",%d,Byte Array,0.000000,0,0,1", connectionName, tagName, freq)
+			iot = append(iot, outLine)
+
+		}
+	}
+	return
+}
+
+// generatePLC - funkcja generująca plik plc
 // "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // ================================================================================================
-func generateOut(symLine []string, bSize int, cName string, freq int) (plc []string, iot []string, err error) {
+func generatePLC(symLine []string, bSize int, freq int) (plc []string) {
 
 	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data sType,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
-	iot = append(iot, "Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,")
 
 	var iImage [65535]byte
 	var mImage [65535]byte
@@ -164,7 +184,7 @@ func generateOut(symLine []string, bSize int, cName string, freq int) (plc []str
 	plc = append(plc, prepPLCImageBlocks(mImage, "MB", bSize, freq)...)
 	plc = append(plc, prepPLCImageBlocks(oImage, "QB", bSize, freq)...)
 
-	return plc, iot, nil
+	return
 }
 
 // main - program entry point
@@ -188,16 +208,13 @@ func main() {
 
 	symIn, _ := readLines(*symFilename)
 
-	plcOut, iotOut, err := generateOut(symIn, *blockSize, *connectionName, *pollFreq)
+	plcOut := generatePLC(symIn, *blockSize, *pollFreq)
+	iotOut := generateIOT(plcOut, *connectionName, *pollFreq)
 
-	if ErrCheck(err) {
-		fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
+	fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
 
-		writeLines(plcOut, *plcFilename)
-		writeLines(iotOut, *iotFilename)
-	} else {
-
-	}
+	writeLines(plcOut, *plcFilename)
+	writeLines(iotOut, *iotFilename)
 
 }
 
