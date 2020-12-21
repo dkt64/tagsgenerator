@@ -132,7 +132,7 @@ func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
 
 			tagName := fields[0][1 : len(fields[0])-1]
 
-			outLine := fmt.Sprintf("\"%s.%s\",%d,Byte Array,0.000000,0,0,1", connectionName, tagName, freq)
+			outLine := fmt.Sprintf("\"%s.%s\",%d,Byte Array,0.000000,0,1,1", connectionName, tagName, freq)
 			iot = append(iot, outLine)
 
 		}
@@ -200,12 +200,12 @@ func main() {
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	symFilename := flag.String("s", "Symbols.asc", "Step7 symbol table filename (Symbols.asc if not defined)")
-	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (plc.csv if not defined)")
-	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename (iot.csv if not defined)")
-	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description (SiemensTCPIP.PLC) if not defined")
-	blockSize := flag.Int("b", 8, "Block size in bytes (8 bytes if not defined)")
-	pollFreq := flag.Int("f", 100, "Frequency of polling in [ms] (100 ms if not defined)")
+	symFilename := flag.String("s", "Symbols.asc", "Step7 symbol table filename")
+	plcFilename := flag.String("p", "plc.csv", "PLC tags filename")
+	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename")
+	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description")
+	blockSize := flag.Int("b", 8, "Block size in [bytes]")
+	pollFreq := flag.Int("f", 100, "Frequency of polling in [ms]")
 
 	flag.Parse()
 
