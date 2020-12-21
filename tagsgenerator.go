@@ -100,16 +100,32 @@ func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string
 func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int) (outLines []string) {
 
 	var imagePtr1 int
-	for imagePtr1 = 0; imagePtr1 < 65535-blockSize; imagePtr1 += blockSize {
+	step := 1
+	for imagePtr1 = 0; imagePtr1 < 65535-blockSize; imagePtr1 += step {
 		found := false
-		for imagePtr2 := 0; imagePtr2 < blockSize; imagePtr2++ {
-			if image[imagePtr1+imagePtr2] > 0 {
+
+		if step == 1 {
+			if image[imagePtr1] > 0 {
 				found = true
+				imagePtr1 -= imagePtr1 % blockSize
+			}
+		} else {
+			for imagePtr2 := 0; imagePtr2 < blockSize; imagePtr2++ {
+				if image[imagePtr1+imagePtr2] > 0 {
+					found = true
+					break
+				}
 			}
 		}
+
 		if found {
 			line := fmt.Sprintf("\"tab%s%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, blockSize, freq)
 			outLines = append(outLines, line)
+			// Jeżeli znajdziemy to dodajemy do wskaźnika rozmiar bloku
+			// Jeżeli nie to przesuwamy się o bajt
+			step = blockSize
+		} else {
+			step = 1
 		}
 	}
 
