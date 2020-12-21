@@ -108,7 +108,7 @@ func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int)
 			}
 		}
 		if found {
-			line := fmt.Sprintf("\"tab%s%d\",\"%s%d[%d]\",Byte Array,1,R,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, blockSize, freq)
+			line := fmt.Sprintf("\"tab%s%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, blockSize, freq)
 			outLines = append(outLines, line)
 		}
 	}
