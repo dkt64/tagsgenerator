@@ -121,6 +121,9 @@ func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int)
 // "SiemensTCPIP.LivePLC01.tabIB0",100,Byte Array,0.000000,0,0,1
 // ================================================================================================
 func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
+	iot = append(iot, ";")
+	iot = append(iot, "; IOTItem")
+	iot = append(iot, ";")
 	iot = append(iot, "Server Tag,Scan Rate,Data Type,Deadband,Send Every Scan,Enabled,Use Scan Rate,")
 	for _, line := range plc {
 
