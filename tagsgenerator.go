@@ -144,7 +144,7 @@ func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
 // ================================================================================================
 func generatePLC(symLine []string, bSize int, freq int) (plc []string) {
 
-	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data sType,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
+	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 
 	var iImage [65535]byte
 	var mImage [65535]byte
