@@ -11,7 +11,7 @@
 			"mode": "auto",
 			"program": "${fileDirname}",
 			"env": {},
-			"args": ["--b=4"]
+			"args": ["--s=PLCTags.sdf"]
 		}
 	]
 }

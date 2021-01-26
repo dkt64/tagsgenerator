@@ -52,43 +52,87 @@ func writeLines(lines []string, path string) error {
 	return w.Flush()
 }
 
+// parseTIAAddress - rozdzielenie typu i adresu
+// ================================================================================================
+func parseAddress(s string) (letters, numbers string) {
+	var l, n []rune
+	for _, r := range s {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			l = append(l, r)
+		case r >= 'a' && r <= 'z':
+			l = append(l, r)
+		case r >= '0' && r <= '9':
+			n = append(n, r)
+		}
+	}
+	return string(l), string(n)
+}
+
 // decodeLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
-	startingIndex := strings.Index(s, ",") + 1
+func decodeLine(s string, filename string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
-	s1 := s[startingIndex:len(s)]
+	if strings.Contains(filename, ".asc") {
 
-	sFildSym = s1[0:24]
+		startingIndex := strings.Index(s, ",") + 1
 
-	lineRest := s1[24:len(s1)]
-	fields := strings.Fields(lineRest)
+		s1 := s[startingIndex:len(s)]
 
-	if len(fields) > 0 {
-		sFieldPer = fields[0]
-	}
-	var add string
-	if len(fields) > 1 {
-		add = fields[1]
-	}
-	if len(fields) > 2 {
-		sFieldsTyp = fields[2]
-	}
+		sFildSym = s1[0:24]
 
-	if len(fields) > 3 {
-		for i := 3; i < len(fields); i++ {
-			sFieldCom = sFieldCom + fields[i] + " "
+		lineRest := s1[24:len(s1)]
+		fields := strings.Fields(lineRest)
+
+		if len(fields) > 0 {
+			sFieldPer = fields[0]
 		}
-		sFieldCom = sFieldCom[0 : len(sFieldCom)-1]
-	}
+		var add string
+		if len(fields) > 1 {
+			add = fields[1]
+		}
+		if len(fields) > 2 {
+			sFieldsTyp = fields[2]
+		}
 
-	addHILO := strings.Split(add, ".")
+		if len(fields) > 3 {
+			for i := 3; i < len(fields); i++ {
+				sFieldCom = sFieldCom + fields[i] + " "
+			}
+			sFieldCom = sFieldCom[0 : len(sFieldCom)-1]
+		}
 
-	if len(addHILO) > 0 {
-		sFieldAddHI = addHILO[0]
+		addHILO := strings.Split(add, ".")
+
+		if len(addHILO) > 0 {
+			sFieldAddHI = addHILO[0]
+		}
+		if len(addHILO) > 1 {
+			sFieldAddLO = addHILO[1]
+		}
+
 	}
-	if len(addHILO) > 1 {
-		sFieldAddLO = addHILO[1]
+	if strings.Contains(filename, ".sdf") {
+
+		fields := strings.Split(s, ",")
+
+		if len(fields) > 1 {
+			var add string
+			fullAdd := strings.ReplaceAll(strings.ReplaceAll(fields[1], "\"", ""), "%", "")
+			addHILO := strings.Split(fullAdd, ".")
+
+			sFieldPer, add = parseAddress(addHILO[0])
+
+			fmt.Println(fullAdd, addHILO, sFieldPer, add)
+
+			if len(addHILO) > 0 {
+				sFieldAddHI = add
+			}
+			if len(addHILO) > 1 {
+				sFieldAddLO = addHILO[1]
+			}
+		}
+
 	}
 
 	return
@@ -100,12 +144,15 @@ func decodeLine(s string) (sFildSym string, sFieldPer string, sFieldAddHI string
 func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int) (outLines []string) {
 
 	var imagePtr1, imagePtr2 int
+	// var lastSize byte
 	for imagePtr1 = 0; imagePtr1 < 65535-blockSize; imagePtr1++ {
 		found := false
 		if image[imagePtr1] > 0 {
 			found = true
-			for imagePtr2 = 0; imagePtr2 < blockSize; imagePtr2++ {
-				if image[imagePtr1+imagePtr2] == 0 {
+			for imagePtr2 = 0; imagePtr2 < blockSize; {
+				if image[imagePtr1+imagePtr2] > 0 {
+					imagePtr2 += int(image[imagePtr1+imagePtr2])
+				} else {
 					break
 				}
 			}
@@ -150,7 +197,7 @@ func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
 // "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // ================================================================================================
-func generatePLC(symLine []string, bSize int, freq int) (plc []string) {
+func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []string) {
 
 	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 
@@ -170,19 +217,41 @@ func generatePLC(symLine []string, bSize int, freq int) (plc []string) {
 		// fmt.Println("Type      :", sType)
 		// fmt.Println("Comment   :", sComment)
 
-		_, sPer, sAddHI, _, _, _ := decodeLine(line)
+		_, sPer, sAddHI, _, _, _ := decodeLine(line, filename)
 
-		byteNr, err := strconv.ParseInt(sAddHI, 10, 16)
+		if len(sAddHI) > 0 {
+			byteNr, err := strconv.ParseInt(sAddHI, 10, 16)
 
-		if ErrCheck(err) && sAddHI != "" {
-			if sPer == "I" || sPer == "IB" || sPer == "IW" || sPer == "ID" {
-				iImage[byteNr] = 1
-			}
-			if sPer == "M" || sPer == "MB" || sPer == "MW" || sPer == "MD" {
-				mImage[byteNr] = 1
-			}
-			if sPer == "Q" || sPer == "QB" || sPer == "QW" || sPer == "QD" {
-				oImage[byteNr] = 1
+			if ErrCheck(err) && sAddHI != "" {
+				if sPer == "I" || sPer == "IB" {
+					iImage[byteNr] = 1
+				}
+				if sPer == "IW" {
+					iImage[byteNr] = 2
+				}
+				if sPer == "ID" {
+					iImage[byteNr] = 4
+				}
+
+				if sPer == "M" || sPer == "MB" {
+					mImage[byteNr] = 1
+				}
+				if sPer == "MW" {
+					mImage[byteNr] = 2
+				}
+				if sPer == "MD" {
+					mImage[byteNr] = 4
+				}
+
+				if sPer == "Q" || sPer == "QB" {
+					oImage[byteNr] = 1
+				}
+				if sPer == "QW" {
+					oImage[byteNr] = 2
+				}
+				if sPer == "QD" {
+					oImage[byteNr] = 4
+				}
 			}
 		}
 	}
@@ -205,7 +274,7 @@ func main() {
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	symFilename := flag.String("s", "Symbols.asc", "Step7 symbol table filename")
+	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename")
 	plcFilename := flag.String("p", "plc.csv", "PLC tags filename")
 	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename")
 	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description")
@@ -216,7 +285,7 @@ func main() {
 
 	symIn, _ := readLines(*symFilename)
 
-	plcOut := generatePLC(symIn, *blockSize, *pollFreq)
+	plcOut := generatePLC(symIn, *blockSize, *pollFreq, *symFilename)
 	iotOut := generateIOT(plcOut, *connectionName, *pollFreq)
 
 	fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
