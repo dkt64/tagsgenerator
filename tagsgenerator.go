@@ -7,7 +7,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/encoding/charmap"
 )
+
+// Symbol - typ przechowujący dane o symbolu
+// ================================================================================================
+type Symbol struct {
+	sSymbol, sPer, sAddHI, sAddLO, sType, sComment string
+}
+
+var symbols []Symbol
 
 // ErrCheck - obsługa błedów
 // ================================================================================================
@@ -17,6 +27,14 @@ func ErrCheck(errNr error) bool {
 		return false
 	}
 	return true
+}
+
+// DecodeWindows1250 - dekodowanie ASCII
+// ================================================================================================
+func DecodeWindows1250(enc string) string {
+	dec := charmap.Windows1250.NewDecoder()
+	out, _ := dec.String(enc)
+	return string(out)
 }
 
 // readLines reads a whole file into memory and returns a slice of its lines.
@@ -71,7 +89,7 @@ func parseAddress(s string) (letters, numbers string) {
 
 // decodeLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeLine(s string, filename string) (sFildSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
 	if strings.Contains(filename, ".asc") {
 
@@ -79,7 +97,8 @@ func decodeLine(s string, filename string) (sFildSym string, sFieldPer string, s
 
 		s1 := s[startingIndex:len(s)]
 
-		sFildSym = s1[0:24]
+		sFieldSym = s1[0:24]
+		sFieldSym = strings.TrimSpace(sFieldSym)
 
 		lineRest := s1[24:len(s1)]
 		fields := strings.Fields(lineRest)
@@ -100,6 +119,7 @@ func decodeLine(s string, filename string) (sFildSym string, sFieldPer string, s
 				sFieldCom = sFieldCom + fields[i] + " "
 			}
 			sFieldCom = sFieldCom[0 : len(sFieldCom)-1]
+			sFieldCom = strings.TrimRight(sFieldCom, " ")
 		}
 
 		addHILO := strings.Split(add, ".")
@@ -217,7 +237,11 @@ func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []
 		// fmt.Println("Type      :", sType)
 		// fmt.Println("Comment   :", sComment)
 
-		_, sPer, sAddHI, _, _, _ := decodeLine(line, filename)
+		line = DecodeWindows1250(line)
+
+		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeLine(line, filename)
+
+		var newSymbol = Symbol{sSymbol, sPer, sAddHI, sAddLO, sType, sComment}
 
 		if len(sAddHI) > 0 {
 			byteNr, err := strconv.ParseInt(sAddHI, 10, 16)
@@ -252,6 +276,8 @@ func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []
 				if sPer == "QD" {
 					oImage[byteNr] = 4
 				}
+
+				symbols = append(symbols, newSymbol)
 			}
 		}
 	}
@@ -274,9 +300,11 @@ func main() {
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename")
-	plcFilename := flag.String("p", "plc.csv", "PLC tags filename")
-	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename")
+	// hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI tags table filename (input)")
+	// hmiAlarmsFilename := flag.String("a", "", "WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)")
+	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)")
+	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (output)")
+	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename (output)")
 	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description")
 	blockSize := flag.Int("b", 8, "Block size in [bytes]")
 	pollFreq := flag.Int("f", 100, "Frequency of polling in [ms]")
@@ -292,6 +320,10 @@ func main() {
 
 	writeLines(plcOut, *plcFilename)
 	writeLines(iotOut, *iotFilename)
+
+	for _, sym := range symbols {
+		fmt.Println(sym)
+	}
 
 }
 
