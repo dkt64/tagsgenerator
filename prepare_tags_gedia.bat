@@ -1,1 +1,1 @@
-tagsgenerator.exe --c="SiemensTCPIP.UKL-01" --s=Symbols.asc
+go run tagsgenerator.go --c="SiemensTCPIP.UKL-01" --s=Symbols.asc --t=Tags.csv

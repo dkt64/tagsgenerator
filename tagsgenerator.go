@@ -2,13 +2,18 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 // Symbol - typ przechowujący dane o symbolu
@@ -54,6 +59,60 @@ func readLines(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
+// ReadFileUTF16 - Similar to ioutil.ReadFile() but decodes UTF-16.  Useful when
+// reading data from MS-Windows systems that generate UTF-16BE files,
+// but will do the right thing if other BOMs are found.
+// ================================================================================================
+func ReadFileUTF16(filename string) ([]byte, error) {
+
+	// Read the file into a []byte:
+	raw, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make an tranformer that converts MS-Win default to UTF8:
+	win16be := unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM)
+	// Make a transformer that is like win16be, but abides by BOM:
+	utf16bom := unicode.BOMOverride(win16be.NewDecoder())
+
+	// Make a Reader that uses utf16bom:
+	unicodeReader := transform.NewReader(bytes.NewReader(raw), utf16bom)
+
+	// decode and print:
+	decoded, err := ioutil.ReadAll(unicodeReader)
+	return decoded, err
+}
+
+// readLinesUTF16 - reads a whole file into memory and returns a slice of its lines.
+// ================================================================================================
+func readLinesUTF16(path string) ([]string, error) {
+	myFile, err := ReadFileUTF16(path)
+	if err != nil {
+		return nil, err
+	}
+	// fmt.Println(string(myFile))
+
+	var lines []string
+	bytesReader := bytes.NewReader(myFile)
+	scanner := bufio.NewReader(bytesReader)
+	for {
+		line, _, err := scanner.ReadLine()
+
+		if err == nil {
+			// fmt.Println(string(line))
+			lines = append(lines, string(line))
+		} else {
+			// fmt.Println("ERROR")
+			break
+		}
+	}
+	if err == errors.New("EOF") {
+		return lines, nil
+	}
+	return lines, err
+}
+
 // writeLines writes the lines to the given file.
 // ================================================================================================
 func writeLines(lines []string, path string) error {
@@ -87,9 +146,9 @@ func parseAddress(s string) (letters, numbers string) {
 	return string(l), string(n)
 }
 
-// decodeLine - rozdzielenie pól w linii
+// decodeS7PLCSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
 	if strings.Contains(filename, ".asc") {
 
@@ -143,13 +202,69 @@ func decodeLine(s string, filename string) (sFieldSym string, sFieldPer string, 
 
 			sFieldPer, add = parseAddress(addHILO[0])
 
-			fmt.Println(fullAdd, addHILO, sFieldPer, add)
+			// fmt.Println(fullAdd, addHILO, sFieldPer, add)
 
 			if len(addHILO) > 0 {
 				sFieldAddHI = add
 			}
 			if len(addHILO) > 1 {
 				sFieldAddLO = addHILO[1]
+			}
+		}
+
+	}
+
+	return
+}
+
+// decodeFlexTagSymLine - rozdzielenie pól w linii
+// ================================================================================================
+func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+
+	// fmt.Println(s)
+
+	fields := strings.Split(s, "\t")
+
+	if strings.Contains(filename, ".csv") && len(fields[0]) > 0 {
+
+		if fields[0][0] != '#' {
+			fmt.Println(fields)
+
+			var add string
+
+			if len(fields) > 0 {
+				sFieldSym = fields[0]
+				fmt.Println(sFieldSym)
+			}
+			if len(fields) > 2 {
+				subFields := strings.Split(fields[2], " ")
+
+				if len(subFields) > 1 {
+					sFieldPer = subFields[0] + subFields[1]
+					fmt.Println(sFieldPer)
+				}
+				if len(subFields) > 3 {
+					add = subFields[3]
+					fmt.Println(add)
+
+					addHILO := strings.Split(add, ".")
+
+					if len(addHILO) > 0 {
+						sFieldAddHI = addHILO[0]
+					}
+					if len(addHILO) > 1 {
+						sFieldAddLO = addHILO[1]
+					}
+
+				}
+			}
+			if len(fields) > 3 {
+				sFieldsTyp = fields[3]
+				fmt.Println(sFieldsTyp)
+			}
+			if len(fields) > 19 {
+				sFieldCom = fields[19]
+				fmt.Println(sFieldCom)
 			}
 		}
 
@@ -179,7 +294,7 @@ func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int)
 		}
 
 		if found {
-			line := fmt.Sprintf("\"tab%s%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
+			line := fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
 			outLines = append(outLines, line)
 			imagePtr1 += imagePtr2 - 1
 		}
@@ -217,7 +332,7 @@ func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
 // "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // ================================================================================================
-func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []string) {
+func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, S7SymFilename string, FlexSymFilename string) (plc []string) {
 
 	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 
@@ -226,10 +341,10 @@ func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []
 	var oImage [65535]byte
 
 	// Wypełnienie obrazów
-	for _, line := range symLine {
+	for _, line := range plcSymLine {
 
 		// fmt.Println("Decoding  :", line)
-		// sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeLine(line)
+		// sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line)
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
 		// fmt.Println("AddressHI :", sAddHI)
@@ -239,45 +354,81 @@ func generatePLC(symLine []string, bSize int, freq int, filename string) (plc []
 
 		line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeLine(line, filename)
-
+		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
 		var newSymbol = Symbol{sSymbol, sPer, sAddHI, sAddLO, sType, sComment}
 
-		if len(sAddHI) > 0 {
-			byteNr, err := strconv.ParseInt(sAddHI, 10, 16)
+		// fmt.Println("Symbol    :", sSymbol)
+		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("AddressHI :", sAddHI)
+		// fmt.Println("AddressLO :", sAddLO)
+		// fmt.Println("Type      :", sType)
+		// fmt.Println("Comment   :", sComment)
 
-			if ErrCheck(err) && sAddHI != "" {
-				if sPer == "I" || sPer == "IB" {
+		symbols = append(symbols, newSymbol)
+	}
+
+	// Wypełnienie obrazów
+	for _, line := range hmiSymLine {
+
+		// fmt.Println("Decoding  :", line)
+		// sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line)
+		// fmt.Println("Symbol    :", sSymbol)
+		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("AddressHI :", sAddHI)
+		// fmt.Println("AddressLO :", sAddLO)
+		// fmt.Println("Type      :", sType)
+		// fmt.Println("Comment   :", sComment)
+
+		// line = DecodeWindows1250(line)
+
+		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sAddHI, sAddLO, sType, sComment}
+
+		// fmt.Println("Symbol    :", sSymbol)
+		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("AddressHI :", sAddHI)
+		// fmt.Println("AddressLO :", sAddLO)
+		// fmt.Println("Type      :", sType)
+		// fmt.Println("Comment   :", sComment)
+
+		symbols = append(symbols, newSymbol)
+	}
+
+	for _, sym := range symbols {
+		if len(sym.sAddHI) > 0 {
+			byteNr, err := strconv.ParseInt(sym.sAddHI, 10, 16)
+
+			if ErrCheck(err) && sym.sAddHI != "" {
+				if sym.sPer == "I" || sym.sPer == "IB" {
 					iImage[byteNr] = 1
 				}
-				if sPer == "IW" {
+				if sym.sPer == "IW" {
 					iImage[byteNr] = 2
 				}
-				if sPer == "ID" {
+				if sym.sPer == "ID" {
 					iImage[byteNr] = 4
 				}
 
-				if sPer == "M" || sPer == "MB" {
+				if sym.sPer == "M" || sym.sPer == "MB" {
 					mImage[byteNr] = 1
 				}
-				if sPer == "MW" {
+				if sym.sPer == "MW" {
 					mImage[byteNr] = 2
 				}
-				if sPer == "MD" {
+				if sym.sPer == "MD" {
 					mImage[byteNr] = 4
 				}
 
-				if sPer == "Q" || sPer == "QB" {
+				if sym.sPer == "Q" || sym.sPer == "QB" {
 					oImage[byteNr] = 1
 				}
-				if sPer == "QW" {
+				if sym.sPer == "QW" {
 					oImage[byteNr] = 2
 				}
-				if sPer == "QD" {
+				if sym.sPer == "QD" {
 					oImage[byteNr] = 4
 				}
 
-				symbols = append(symbols, newSymbol)
 			}
 		}
 	}
@@ -300,7 +451,7 @@ func main() {
 	fmt.Println("========================================================================================")
 	fmt.Println()
 
-	// hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI tags table filename (input)")
+	hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI tags table filename (input)")
 	// hmiAlarmsFilename := flag.String("a", "", "WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)")
 	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)")
 	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (output)")
@@ -311,9 +462,10 @@ func main() {
 
 	flag.Parse()
 
-	symIn, _ := readLines(*symFilename)
+	plcSymIn, _ := readLines(*symFilename)
+	hmiSymIn, _ := readLinesUTF16(*hmiTagsFilename)
 
-	plcOut := generatePLC(symIn, *blockSize, *pollFreq, *symFilename)
+	plcOut := generatePLC(plcSymIn, hmiSymIn, *blockSize, *pollFreq, *symFilename, *hmiTagsFilename)
 	iotOut := generateIOT(plcOut, *connectionName, *pollFreq)
 
 	fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
@@ -321,9 +473,9 @@ func main() {
 	writeLines(plcOut, *plcFilename)
 	writeLines(iotOut, *iotFilename)
 
-	for _, sym := range symbols {
-		fmt.Println(sym)
-	}
+	// for _, sym := range symbols {
+	// 	fmt.Println(sym)
+	// }
 
 }
 
