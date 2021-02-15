@@ -19,10 +19,17 @@ import (
 // Symbol - typ przechowujący dane o symbolu
 // ================================================================================================
 type Symbol struct {
-	sSymbol, sPer, sAddHI, sAddLO, sType, sComment string
+	sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment string
 }
 
 var symbols []Symbol
+
+// DBBlock - typ przechowujący dane o bloku DB
+// ================================================================================================
+type DBBlock struct {
+	nr     int
+	offset [65536]byte
+}
 
 // ErrCheck - obsługa błedów
 // ================================================================================================
@@ -148,7 +155,7 @@ func parseAddress(s string) (letters, numbers string) {
 
 // decodeS7PLCSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldSize string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
 	if strings.Contains(filename, ".asc") {
 
@@ -219,7 +226,7 @@ func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer 
 
 // decodeFlexTagSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sSize string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
 	// fmt.Println(s)
 
@@ -228,24 +235,28 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 	if strings.Contains(filename, ".csv") && len(fields[0]) > 0 {
 
 		if fields[0][0] != '#' {
-			fmt.Println(fields)
+			// fmt.Println(fields)
 
 			var add string
 
 			if len(fields) > 0 {
 				sFieldSym = fields[0]
-				fmt.Println(sFieldSym)
+				// fmt.Println(sFieldSym)
 			}
 			if len(fields) > 2 {
 				subFields := strings.Split(fields[2], " ")
 
 				if len(subFields) > 1 {
 					sFieldPer = subFields[0] + subFields[1]
-					fmt.Println(sFieldPer)
+					// fmt.Println(sFieldPer)
+				}
+				if len(subFields) > 2 {
+					sSize = subFields[2]
+					// fmt.Println(sFieldPer)
 				}
 				if len(subFields) > 3 {
 					add = subFields[3]
-					fmt.Println(add)
+					// fmt.Println(add)
 
 					addHILO := strings.Split(add, ".")
 
@@ -260,11 +271,11 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 			}
 			if len(fields) > 3 {
 				sFieldsTyp = fields[3]
-				fmt.Println(sFieldsTyp)
+				// fmt.Println(sFieldsTyp)
 			}
 			if len(fields) > 19 {
 				sFieldCom = fields[19]
-				fmt.Println(sFieldCom)
+				// fmt.Println(sFieldCom)
 			}
 		}
 
@@ -339,6 +350,7 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 	var iImage [65535]byte
 	var mImage [65535]byte
 	var oImage [65535]byte
+	// var dbBlocks []DBBlock
 
 	// Wypełnienie obrazów
 	for _, line := range plcSymLine {
@@ -354,8 +366,8 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 		line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
-		var newSymbol = Symbol{sSymbol, sPer, sAddHI, sAddLO, sType, sComment}
+		sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment}
 
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
@@ -381,8 +393,8 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 		// line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sAddHI, sAddLO, sType, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
-		var newSymbol = Symbol{sSymbol, sPer, sAddHI, sAddLO, sType, sComment}
+		sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment}
 
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
@@ -427,6 +439,15 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 				}
 				if sym.sPer == "QD" {
 					oImage[byteNr] = 4
+				}
+
+				if strings.Contains(sym.sPer, "DB") {
+					var dbNr int
+					n, err := fmt.Sscanf(sym.sPer, "DB%d", &dbNr)
+					if ErrCheck(err) && n > 0 {
+						fmt.Printf("DB%d %s%s\n", dbNr, sym.sSize, sym.sAddHI)
+					}
+
 				}
 
 			}
