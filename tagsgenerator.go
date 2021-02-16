@@ -19,7 +19,7 @@ import (
 // Symbol - typ przechowujący dane o symbolu
 // ================================================================================================
 type Symbol struct {
-	sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment string
+	sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment string
 }
 
 var symbols []Symbol
@@ -27,15 +27,26 @@ var symbols []Symbol
 // DBBlock - typ przechowujący dane o bloku DB
 // ================================================================================================
 type DBBlock struct {
-	nr     int
-	offset [65536]byte
+	nr  int
+	tab [65536]byte
 }
+
+var dbBlocks []DBBlock
 
 // ErrCheck - obsługa błedów
 // ================================================================================================
 func ErrCheck(errNr error) bool {
 	if errNr != nil {
 		fmt.Println(errNr)
+		return false
+	}
+	return true
+}
+
+// ErrCheck2 - obsługa błedów
+// ================================================================================================
+func ErrCheck2(errNr error) bool {
+	if errNr != nil {
 		return false
 	}
 	return true
@@ -226,7 +237,7 @@ func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer 
 
 // decodeFlexTagSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sSize string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sNr string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
 
 	// fmt.Println(s)
 
@@ -251,8 +262,12 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 					// fmt.Println(sFieldPer)
 				}
 				if len(subFields) > 2 {
-					sSize = subFields[2]
+					sNr = subFields[1]
 					// fmt.Println(sFieldPer)
+				}
+				if len(subFields) > 2 {
+					sFieldsTyp = subFields[2]
+					// fmt.Println(sFieldsTyp)
 				}
 				if len(subFields) > 3 {
 					add = subFields[3]
@@ -269,10 +284,6 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 
 				}
 			}
-			if len(fields) > 3 {
-				sFieldsTyp = fields[3]
-				// fmt.Println(sFieldsTyp)
-			}
 			if len(fields) > 19 {
 				sFieldCom = fields[19]
 				// fmt.Println(sFieldCom)
@@ -287,11 +298,11 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 // prepPLCImageBlocks - wygenerowanie listy tagów w blokach na podstawie obrazu zajętości
 // plc = prepPLCImageBlocks(iImage, "IB", bSize, freq)
 // ================================================================================================
-func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int) (outLines []string) {
+func prepPLCImageBlocks(image [65536]byte, name string, blockSize int, freq int) (outLines []string) {
 
 	var imagePtr1, imagePtr2 int
 	// var lastSize byte
-	for imagePtr1 = 0; imagePtr1 < 65535-blockSize; imagePtr1++ {
+	for imagePtr1 = 0; imagePtr1 < 65536-blockSize; imagePtr1++ {
 		found := false
 		if image[imagePtr1] > 0 {
 			found = true
@@ -305,7 +316,12 @@ func prepPLCImageBlocks(image [65535]byte, name string, blockSize int, freq int)
 		}
 
 		if found {
-			line := fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
+			var line string
+			if !strings.Contains(name, "DB") {
+				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
+			} else {
+				line = fmt.Sprintf("\"tab%s_%d\",\"%s.DBB%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
+			}
 			outLines = append(outLines, line)
 			imagePtr1 += imagePtr2 - 1
 		}
@@ -338,6 +354,57 @@ func generateIOT(plc []string, connectionName string, freq int) (iot []string) {
 	return
 }
 
+// addSymToDBImage
+// ================================================================================================
+func addSymToDBImage(sym Symbol) {
+
+	nr, err := strconv.Atoi(sym.sNr)
+	if ErrCheck2(err) {
+		found := false
+
+		var index int
+
+		for i, block := range dbBlocks {
+			if block.nr == nr {
+				found = true
+				index = i
+				break
+			}
+		}
+
+		var adr int
+		n, err := fmt.Sscanf(sym.sAddHI, "%d", &adr)
+		if ErrCheck2(err) && n > 0 {
+
+			fmt.Println(sym.sType)
+			var size byte
+			if sym.sType == "DBX" || sym.sType == "DBB" {
+				size = 1
+			}
+			if sym.sType == "DBW" {
+				size = 2
+			}
+			if sym.sType == "DBD" {
+				size = 4
+			}
+
+			if size > 0 {
+
+				if !found {
+					var newBlock DBBlock
+					newBlock.nr = nr
+					dbBlocks = append(dbBlocks, newBlock)
+					index = len(dbBlocks) - 1
+					fmt.Println("Nowy blok " + sym.sPer)
+				}
+
+				// fmt.Println("Adres DB" + sym.sNr + "." + sym.sAddHI)
+				dbBlocks[index].tab[adr] = byte(size)
+			}
+		}
+	}
+}
+
 // generatePLC - funkcja generująca plik plc
 // "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
 // "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
@@ -347,10 +414,9 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 	plc = append(plc, "Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value")
 
-	var iImage [65535]byte
-	var mImage [65535]byte
-	var oImage [65535]byte
-	// var dbBlocks []DBBlock
+	var iImage [65536]byte
+	var mImage [65536]byte
+	var oImage [65536]byte
 
 	// Wypełnienie obrazów
 	for _, line := range plcSymLine {
@@ -366,8 +432,8 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 		line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
-		var newSymbol = Symbol{sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment}
+		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment}
 
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
@@ -393,8 +459,8 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 		// line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
-		var newSymbol = Symbol{sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sComment}
+		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment}
 
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
@@ -442,12 +508,7 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 				}
 
 				if strings.Contains(sym.sPer, "DB") {
-					var dbNr int
-					n, err := fmt.Sscanf(sym.sPer, "DB%d", &dbNr)
-					if ErrCheck(err) && n > 0 {
-						fmt.Printf("DB%d %s%s\n", dbNr, sym.sSize, sym.sAddHI)
-					}
-
+					addSymToDBImage(sym)
 				}
 
 			}
@@ -458,6 +519,11 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 	plc = append(plc, prepPLCImageBlocks(iImage, "IB", bSize, freq)...)
 	plc = append(plc, prepPLCImageBlocks(mImage, "MB", bSize, freq)...)
 	plc = append(plc, prepPLCImageBlocks(oImage, "QB", bSize, freq)...)
+
+	for _, block := range dbBlocks {
+		bb := block.tab
+		plc = append(plc, prepPLCImageBlocks(bb, "DB"+strconv.Itoa(block.nr), bSize, freq)...)
+	}
 
 	return
 }
