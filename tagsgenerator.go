@@ -286,7 +286,7 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 			}
 			if len(fields) > 5 {
 				sFieldSize = fields[5]
-				fmt.Println(sFieldSize)
+				// fmt.Println(sFieldSize)
 			}
 			if len(fields) > 19 {
 				sFieldCom = fields[19]
