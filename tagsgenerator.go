@@ -237,7 +237,7 @@ func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer 
 
 // decodeFlexTagSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sNr string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldSize, sFieldCom string) {
+func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sNr string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldSize string, sFieldCom string) {
 
 	// fmt.Println(s)
 
@@ -383,7 +383,7 @@ func addSymToDBImage(sym Symbol) {
 			// fmt.Println(sym.sType)
 			var size byte
 			si, err := strconv.Atoi(sym.sSize)
-			if ErrCheck(err) && si <= 256 {
+			if ErrCheck(err) && si <= 256 && si > 1 {
 				size = byte(si)
 			} else {
 				if sym.sType == "DBX" || sym.sType == "DBB" {
