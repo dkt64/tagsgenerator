@@ -16,6 +16,26 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// CsvAlarms - typ przechowujący dane o alarmach
+// ================================================================================================
+type CsvAlarms struct {
+	AlarmNumber  int
+	TriggerTag   string
+	TriggerBitNr int
+}
+
+var alarms []CsvAlarms
+
+// Tag - tagi - odwzorowanie linii taga w wartości
+// ================================================================================================
+type Tag struct {
+	Type          string
+	StartingIndex int
+	Size          int
+}
+
+var tags []Tag
+
 // Symbol - typ przechowujący dane o symbolu
 // ================================================================================================
 type Symbol struct {
@@ -321,8 +341,17 @@ func prepPLCImageBlocks(image [65536]byte, name string, blockSize int, freq int)
 
 		if found {
 			var line string
+
+			var newTag Tag
+
+			newTag.Type = name
+			newTag.StartingIndex = imagePtr1
+			newTag.Size = imagePtr2
+
+			tags = append(tags, newTag)
+
 			if !strings.Contains(name, "DB") {
-				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
+				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq*2)
 			} else {
 				line = fmt.Sprintf("\"tab%s_%d\",\"%s.DBB%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
 			}
@@ -537,18 +566,78 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 	return
 }
 
+// ReadCsv accepts a file and returns its content as a multi-dimentional type
+// with lines and each column. Only parses to string type.
+// ================================================================================================
+func parseFlexAlarms(alarms []string) []CsvAlarms {
+
+	var out []CsvAlarms
+
+	// Loop through lines & turn into object
+	for _, alarm := range alarms {
+
+		// fmt.Println(line)
+
+		if !strings.Contains(alarm, "#") && !strings.Contains(alarm, "//") && alarm != "" {
+			fields := strings.Split(alarm, "\t")
+
+			// fmt.Println(fields)
+
+			// alarmNumber, _ := strconv.Atoi(fields[1])
+			// triggerBitNr, _ := strconv.Atoi(fields[4])
+			triggerTag := strings.ReplaceAll(fields[3], "\"", "")
+
+			// szukamy tego taga alarmu w tagach HMI
+			for _, sym := range symbols {
+
+				if sym.sSymbol == triggerTag {
+
+					// fmt.Println(triggerTag)
+
+					for _, t := range tags {
+
+						tagAddress, _ := strconv.Atoi(sym.sAddHI)
+
+						// triggerByte := triggerBitNr / 8
+
+						// fmt.Println(tag.sSymbol + " " + tag.sType)
+						if t.StartingIndex == tagAddress && t.Type == sym.sPer {
+							fmt.Println(fmt.Sprintf("%s %s %s.%d[%d]", triggerTag, sym.sPer, t.Type, t.StartingIndex, t.Size))
+
+							// szukamy tego bitu w tabliwy wygenerowanej w PLC
+							// -----------------------------------------------
+
+							// dodajemy do globalnej tablicy
+							// data := CsvAlarms{
+							// 	AlarmNumber:  alarmNumber,
+							// 	TriggerBitNr: triggerBitNr,
+							// }
+							// out = append(out, data)
+
+							// -----------------------------------------------
+							break
+						}
+					}
+				}
+			}
+
+		}
+	}
+	return out
+}
+
 // main - program entry point
 // ================================================================================================
 func main() {
 
-	fmt.Println("========================================================================================")
-	fmt.Println("=                       Siemens PLC tags generator / DTP                               =")
-	fmt.Println("=  Generator of tags in form of csv configuration files for KepServerEX6 + IoTGateway  =")
-	fmt.Println("========================================================================================")
+	fmt.Println("=============================================================================================")
+	fmt.Println("==                         Siemens PLC tags generator / DTP                                ==")
+	fmt.Println("==    Generator of tags in form of csv configuration files for KepServerEX6 + IoTGateway   ==")
+	fmt.Println("=============================================================================================")
 	fmt.Println()
 
 	hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI tags table filename (input)")
-	// hmiAlarmsFilename := flag.String("a", "", "WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)")
+	hmiAlarmsFilename := flag.String("a", "", "WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)")
 	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)")
 	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (output)")
 	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename (output)")
@@ -558,88 +647,29 @@ func main() {
 
 	flag.Parse()
 
+	// pliki dla kepware
+	// ----------------------------------------------
 	plcSymIn, _ := readLines(*symFilename)
 	hmiSymIn, _ := readLinesUTF16(*hmiTagsFilename)
 
 	plcOut := generatePLC(plcSymIn, hmiSymIn, *blockSize, *pollFreq, *symFilename, *hmiTagsFilename)
 	iotOut := generateIOT(plcOut, *connectionName, *pollFreq)
 
-	fmt.Println("Writing files:", *plcFilename, *iotFilename, "...")
+	fmt.Println("Writing files:", *plcFilename, ", ", *iotFilename, "...")
 
 	writeLines(plcOut, *plcFilename)
 	writeLines(iotOut, *iotFilename)
+
+	// fmt.Println(symbols)
+
+	// pliki dla dtp
+	// ----------------------------------------------
+	fmt.Println("Generating alarms description...")
+	hmiAlarmsIn, _ := readLinesUTF16(*hmiAlarmsFilename)
+	alarms = parseFlexAlarms(hmiAlarmsIn)
 
 	// for _, sym := range symbols {
 	// 	fmt.Println(sym)
 	// }
 
 }
-
-// ================================================================================================
-// Symbols.asc
-// 126,DiF_FSPS                DB      1   FB      1 Instanz DB FSPS
-// 126,IxS-10F8                I       0.0 BOOL      Störung Sicherungen Versorgung intern
-// 126,IxROB4-3A1              I       3.0 BOOL      R4 Brennerreinigung Ready
-// 126,IxV1-S1.1-1_1           I     100.0 BOOL      V1: P1.1 Spanner auf
-// 126,IbR1PunktNr             IB    408   BYTE      R1: Punktnummer
-// 126,MxSystemtakt_10Hz       M       3.0 BOOL      Systemtakt 10HZ
-// 126,MxSt2                   M     100.1 BOOL      Störung Versorgung Intern
-// 126,MxSt195                 M     124.2 BOOL      Blad: Brak drutu R4
-// 126,MBTakt                  MB      3   BYTE      Taktmerkerbyte von CPU
-// 126,MbR4HmErrFr             MB     62   BYTE
-// 126,MbStörungen1-8          MB    100   BYTE      MbStörungen1-8
-// 126,MxAbAct_Sl              MD     90   DINT      DP: Abwahl Slave aktiv
-// 126,MxAnAct_Sl              MD     94   DINT      DP: Anwahl Slave aktiv
-// 126,ZyklischerAufruf        OB      1   OB      1
-// 126,QxS-A0.0                Q       0.0 BOOL      Reserve
-// 126,QxBED-1SH2              Q       1.1 BOOL      Automatik ein
-// 126,QxBED-1SH3              Q       1.2 BOOL      Grundstellung
-// 126,QxV2-20A0-1Y1A:A1       Q     125.0 BOOL      V2: P1.1 Spanner zu
-// 126,QxR1E40                 Q     401.7 BOOL      R1 Rolltor geschlossen
-// 126,QxR1E41PgnoBit0         Q     402.0 BOOL      R1 Bit 0 (1) Programmnummer
-// 126,QxR1E97                 Q     409.0 BOOL      R1 Programmschritt <- Bit 0
-// 126,QbR1SchrittNr           QB    409   BYTE      R1 Schrittnummer
-// 126,TeZeitTakt1sec          T       1   TIMER     Verz. Takt 1 sec.
-// 126,TTimeoutRolltor         T      40   TIMER     Rolltor:Timeout
-// 126,VG                      UDT     1   UDT     1 Daten für Vorrichtung
-// 126,VAT_Ocena WCD           VAT     2
-//
-// ================================================================================================
-// UKL-01.csv
-// Tag Name,Address,Data Type,Respect Data Type,Client Access,Scan Rate,Scaling,Raw Low,Raw High,Scaled Low,Scaled High,Scaled Data Type,Clamp Low,Clamp High,Eng Units,Description,Negate Value
-// "Blad spawarki robota 4","MX70.0",Boolean,1,R/W,100,,,,,,,,,,"",
-// "Blad spawarki robota 5","MX70.1",Boolean,1,R/W,100,,,,,,,,,,"",
-// "HmFpMitOhneStrom","MX4.3",Boolean,1,R/W,100,,,,,,,,,,"Mit/Ohne Strom",
-// "IxR1A41PgnoBit0","IX402.0",Boolean,1,R/W,100,,,,,,,,,,"R1: Bit 0 (1) Programmnummer",
-// "MbStörungen105-112","MBYTE113",Byte,1,R/W,100,,,,,,,,,,"MbStörungen105-112",
-// "MBTakt","MBYTE3",Byte,1,R/W,100,,,,,,,,,,"Taktmerkerbyte von CPU",
-// "MxAbAct_Sl","MDINT90",Long,1,R/W,100,,,,,,,,,,"DP: Abwahl Slave aktiv",
-// "MxR1Schweissfehler","MX51.4",Boolean,1,R/W,100,,,,,,,,,,"R1: Schweissfehler",
-// "QxR2E105","QX430.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Gruppe 1 Auf",
-// "QxR2E41PgnoBit0","QX422.0",Boolean,1,R/W,100,,,,,,,,,,"R2 Bit 0 (1) Programmnummer",
-// "VD.Tisch[3].V.Schnittstelle.HandBedienungAktiv","DB17,X1474.0",Boolean,1,R/W,100,,,,,,,,,,"Handbedienung ist aktiv",
-// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Aktiv","DB17,X1472.0",Boolean,1,R/W,100,,,,,,,,,,"Aktiv",
-// "VD.Tisch[3].V.Schnittstelle.Auswerfer.Error","DB17,X1472.3",Boolean,1,R/W,100,,,,,,,,,,"Störung",
-//
-// "Inputs","IB0[64]",Byte Array,1,R/W,100,,,,,,,,,,"",
-// "Merkers","MB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
-// "Outputs","QB0[32]",Byte Array,1,R/W,100,,,,,,,,,,"",
-//
-// ================================================================================================
-// gedia-test-iothub30321.csv
-// ;
-// ; IOTItem
-// ;
-// Server Tag,Scan Rate,Data sType,Deadband,Send Every Scan,Enabled,Use Scan Rate,
-// "SiemensTCPIP.UKL-01.Blad spawarki robota 4",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.IbR1PunktNr",100,Byte,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.IxKW1-1A0:1/2",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.MxR4Gestartet",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.MxR4Kappenfraesen",100,Boolean,0.000000,0,1,1
-// "SiemensTCPIP.UKL-01.QxR1E41PgnoBit0",100,Boolean,0.000000,0,1,1
-//
-// "SiemensTCPIP.LivePLC01.Inputs",100,Byte Array,0.000000,0,0,1
-// "SiemensTCPIP.LivePLC01.Merkers",100,Byte Array,0.000000,0,0,1
-// "SiemensTCPIP.LivePLC01.Outputs",100,Byte Array,0.000000,0,0,1
-//
-// ================================================================================================
