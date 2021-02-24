@@ -11,15 +11,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 )
 
-// CsvAlarms - typ przechowujący dane o alarmach
+// CsvAlarm - typ przechowujący dane o alarmach
 // ================================================================================================
-type CsvAlarms struct {
+type CsvAlarm struct {
 	Number int
 	Tag    string
 	Index  int
@@ -27,7 +28,15 @@ type CsvAlarms struct {
 	Texts  []string
 }
 
-var alarms []CsvAlarms
+// Alarms - typ przechowujący dane o alarmach
+// ================================================================================================
+type Alarms struct {
+	ConnectionName string
+	Timestamp      int64
+	Alarms         []CsvAlarm
+}
+
+var alarms Alarms
 
 // Tag - tagi - odwzorowanie linii taga w wartości
 // ================================================================================================
@@ -572,9 +581,11 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 // ReadCsv accepts a file and returns its content as a multi-dimentional type
 // with lines and each column. Only parses to string type.
 // ================================================================================================
-func parseFlexAlarms(alarms []string) []CsvAlarms {
+func parseFlexAlarms(alarms []string, connName string) Alarms {
 
-	var out []CsvAlarms
+	var tempAlarms Alarms
+	tempAlarms.ConnectionName = connName
+	tempAlarms.Timestamp = time.Now().Unix()
 
 	// Loop through lines & turn into object
 	for _, alarm := range alarms {
@@ -617,7 +628,7 @@ func parseFlexAlarms(alarms []string) []CsvAlarms {
 
 								for i := 11; i < 18; i++ {
 									if len(fields[i]) > 7 {
-										texts = append(texts, fields[i])
+										texts = append(texts, strings.ReplaceAll(fields[i], "\"", ""))
 									}
 								}
 
@@ -629,14 +640,14 @@ func parseFlexAlarms(alarms []string) []CsvAlarms {
 								tagName := fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
 
 								// dodajemy do globalnej tablicy alarmów
-								data := CsvAlarms{
+								data := CsvAlarm{
 									Number: alarmNumber,
 									Texts:  texts,
 									Tag:    tagName,
 									Index:  triggerByte,
 									BitNr:  bitNr,
 								}
-								out = append(out, data)
+								tempAlarms.Alarms = append(tempAlarms.Alarms, data)
 								// -----------------------------------------------
 								break
 							}
@@ -649,7 +660,7 @@ func parseFlexAlarms(alarms []string) []CsvAlarms {
 
 		}
 	}
-	return out
+	return tempAlarms
 }
 
 // main - program entry point
@@ -692,7 +703,7 @@ func main() {
 	// ----------------------------------------------
 	fmt.Println("Generating alarms description file...")
 	hmiAlarmsIn, _ := readLinesUTF16(*hmiAlarmsFilename)
-	alarms = parseFlexAlarms(hmiAlarmsIn)
+	alarms = parseFlexAlarms(hmiAlarmsIn, *connectionName)
 
 	file, _ := json.MarshalIndent(alarms, "", " ")
 	_ = ioutil.WriteFile("alarms.json", file, 0666)
