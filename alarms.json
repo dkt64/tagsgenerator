@@ -1,6 +1,6 @@
 {
  "ConnectionName": "SiemensTCPIP.PLC",
- "Timestamp": 1614238680,
+ "Timestamp": 1614242374,
  "SourceFilename": "Alarms.csv",
  "SourceInfo": "// WinCC flexible 2008 SP5 Advanced K 1.5.0 HF 2 (1.06.27)",
  "Alarms": [

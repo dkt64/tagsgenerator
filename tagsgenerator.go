@@ -673,6 +673,17 @@ func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 	return tempAlarms
 }
 
+// fileExists - sprawdzenie czy plik istnieje
+// ================================================================================================
+func fileExists(filename string) bool {
+
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
 // main - program entry point
 // ================================================================================================
 func main() {
@@ -694,7 +705,28 @@ func main() {
 
 	flag.Parse()
 
-	// pliki dla kepware
+	// szukamy plików jeżeli nie zostały zdefiniowane
+	// ----------------------------------------------
+	if *symFilename == "" {
+		if fileExists("Symbols.asc") {
+			fmt.Println("Found Symbols.asc file - Step7 symbols export file")
+			*symFilename = "Symbols.asc"
+		}
+	}
+	if *hmiTagsFilename == "" {
+		if fileExists("Tags.csv") {
+			fmt.Println("Found Tags.csv file - WinCCflexible tags export file")
+			*hmiTagsFilename = "Tags.csv"
+		}
+	}
+	if *hmiAlarmsFilename == "" {
+		if fileExists("Alarms.csv") {
+			fmt.Println("Found Alarms.csv file - WinCCflexible alarms export file")
+			*hmiAlarmsFilename = "Alarms.csv"
+		}
+	}
+
+	// pliki plc+iot dla kepware
 	// ----------------------------------------------
 	plcSymIn, _ := readLines(*symFilename)
 	hmiSymIn, _ := readLinesUTF16(*hmiTagsFilename)
@@ -702,21 +734,23 @@ func main() {
 	plcOut := generatePLC(plcSymIn, hmiSymIn, *blockSize, *pollFreq, *symFilename, *hmiTagsFilename)
 	iotOut := generateIOT(plcOut, *connectionName, *pollFreq)
 
-	fmt.Println("Writing files:", *plcFilename, ", ", *iotFilename, "...")
+	fmt.Println("Generating Kepware import files: " + *plcFilename + ", " + *iotFilename + " ...")
 
 	writeLines(plcOut, *plcFilename)
 	writeLines(iotOut, *iotFilename)
 
 	// fmt.Println(symbols)
 
-	// pliki dla dtp
+	// alarmy wincc_flexible
 	// ----------------------------------------------
-	fmt.Println("Generating alarms description file...")
-	hmiAlarmsIn, _ := readLinesUTF16(*hmiAlarmsFilename)
-	alarms = parseFlexAlarms(hmiAlarmsIn, *connectionName, *hmiAlarmsFilename)
+	if len(*hmiAlarmsFilename) > 0 {
+		fmt.Println("Generating alarms description file: alarms.json ...")
+		hmiAlarmsIn, _ := readLinesUTF16(*hmiAlarmsFilename)
+		alarms = parseFlexAlarms(hmiAlarmsIn, *connectionName, *hmiAlarmsFilename)
 
-	file, _ := json.MarshalIndent(alarms, "", " ")
-	_ = ioutil.WriteFile("alarms.json", file, 0666)
+		file, _ := json.MarshalIndent(alarms, "", " ")
+		_ = ioutil.WriteFile("alarms.json", file, 0666)
+	}
 
 	// for _, a := range alarms {
 	// 	fmt.Println(a)
