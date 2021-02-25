@@ -33,6 +33,8 @@ type CsvAlarm struct {
 type Alarms struct {
 	ConnectionName string
 	Timestamp      int64
+	SourceFilename string
+	SourceInfo     string
 	Alarms         []CsvAlarm
 }
 
@@ -581,83 +583,91 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 // ReadCsv accepts a file and returns its content as a multi-dimentional type
 // with lines and each column. Only parses to string type.
 // ================================================================================================
-func parseFlexAlarms(alarms []string, connName string) Alarms {
+func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 
 	var tempAlarms Alarms
-	tempAlarms.ConnectionName = connName
-	tempAlarms.Timestamp = time.Now().Unix()
 
-	// Loop through lines & turn into object
-	for _, alarm := range alarms {
+	if len(srcFile) > 0 {
 
-		// fmt.Println(line)
+		tempAlarms.ConnectionName = connName
+		tempAlarms.Timestamp = time.Now().Unix()
+		tempAlarms.SourceFilename = srcFile
+		if len(alarms) > 0 {
+			tempAlarms.SourceInfo = alarms[0]
 
-		if !strings.Contains(alarm, "#") && !strings.Contains(alarm, "//") && alarm != "" {
-			fields := strings.Split(alarm, "\t")
+			// Loop through lines & turn into object
+			for _, alarm := range alarms {
 
-			// fmt.Println(fields)
+				// fmt.Println(line)
 
-			alarmNumber, _ := strconv.Atoi(strings.ReplaceAll(fields[1], "\"", ""))
-			triggerBitNr, _ := strconv.Atoi(strings.ReplaceAll(fields[4], "\"", ""))
-			triggerTag := strings.ReplaceAll(fields[3], "\"", "")
+				if !strings.Contains(alarm, "#") && !strings.Contains(alarm, "//") && alarm != "" {
+					fields := strings.Split(alarm, "\t")
 
-			// szukamy tego taga alarmu w tagach HMI
-			for _, sym := range symbols {
+					// fmt.Println(fields)
 
-				if sym.sSymbol == triggerTag {
+					alarmNumber, _ := strconv.Atoi(strings.ReplaceAll(fields[1], "\"", ""))
+					triggerBitNr, _ := strconv.Atoi(strings.ReplaceAll(fields[4], "\"", ""))
+					triggerTag := strings.ReplaceAll(fields[3], "\"", "")
 
-					// fmt.Println(triggerTag)
+					// szukamy tego taga alarmu w tagach HMI
+					for _, sym := range symbols {
 
-					// szukamy tego bitu w tablicy wygenerowanej dla PLC
-					// -----------------------------------------------
+						if sym.sSymbol == triggerTag {
 
-					for _, t := range tags {
+							// fmt.Println(triggerTag)
 
-						tagAddress, _ := strconv.Atoi(sym.sAddHI)
+							// szukamy tego bitu w tablicy wygenerowanej dla PLC
+							// -----------------------------------------------
 
-						// fmt.Println(tag.sSymbol + " " + tag.sType)
-						if t.StartingIndex == tagAddress && t.Type == sym.sPer {
+							for _, t := range tags {
 
-							triggerByte := triggerBitNr / 8
-							bitNr := triggerBitNr % 8
+								tagAddress, _ := strconv.Atoi(sym.sAddHI)
 
-							// if triggerByte >= t.StartingIndex && triggerByte < t.StartingIndex+t.Size {
-							if triggerByte < t.Size {
+								// fmt.Println(tag.sSymbol + " " + tag.sType)
+								if t.StartingIndex == tagAddress && t.Type == sym.sPer {
 
-								var texts []string
+									triggerByte := (triggerBitNr / 8) ^ 1
+									bitNr := triggerBitNr % 8
 
-								for i := 11; i < 18; i++ {
-									if len(fields[i]) > 7 {
-										texts = append(texts, strings.ReplaceAll(fields[i], "\"", ""))
+									// if triggerByte >= t.StartingIndex && triggerByte < t.StartingIndex+t.Size {
+									if triggerByte < t.Size {
+
+										var texts []string
+
+										for i := 11; i < 18; i++ {
+											if len(fields[i]) > 7 {
+												texts = append(texts, strings.ReplaceAll(fields[i], "\"", ""))
+											}
+										}
+
+										// fmt.Println(texts)
+										// fmt.Println(fmt.Sprintf("sym %s %s.%s[%s]", triggerTag, sym.sPer, sym.sAddHI, sym.sSize))
+										// fmt.Println(fmt.Sprintf("tag %s %s.%d[%d]", triggerTag, t.Type, t.StartingIndex, triggerByte))
+										// fmt.Println(fmt.Sprintf("tab%s_%d[%d].%d", t.Type, t.StartingIndex, triggerByte, bitNr))
+
+										tagName := fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
+
+										// dodajemy do globalnej tablicy alarmów
+										data := CsvAlarm{
+											Number: alarmNumber,
+											Texts:  texts,
+											Tag:    tagName,
+											Index:  triggerByte,
+											BitNr:  bitNr,
+										}
+										tempAlarms.Alarms = append(tempAlarms.Alarms, data)
+										// -----------------------------------------------
+										break
 									}
+
 								}
-
-								// fmt.Println(texts)
-								// fmt.Println(fmt.Sprintf("sym %s %s.%s[%s]", triggerTag, sym.sPer, sym.sAddHI, sym.sSize))
-								// fmt.Println(fmt.Sprintf("tag %s %s.%d[%d]", triggerTag, t.Type, t.StartingIndex, triggerByte))
-								// fmt.Println(fmt.Sprintf("tab%s_%d[%d].%d", t.Type, t.StartingIndex, triggerByte, bitNr))
-
-								tagName := fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
-
-								// dodajemy do globalnej tablicy alarmów
-								data := CsvAlarm{
-									Number: alarmNumber,
-									Texts:  texts,
-									Tag:    tagName,
-									Index:  triggerByte,
-									BitNr:  bitNr,
-								}
-								tempAlarms.Alarms = append(tempAlarms.Alarms, data)
-								// -----------------------------------------------
-								break
 							}
-
+							break
 						}
 					}
-					break
+
 				}
 			}
-
 		}
 	}
 	return tempAlarms
@@ -703,7 +713,7 @@ func main() {
 	// ----------------------------------------------
 	fmt.Println("Generating alarms description file...")
 	hmiAlarmsIn, _ := readLinesUTF16(*hmiAlarmsFilename)
-	alarms = parseFlexAlarms(hmiAlarmsIn, *connectionName)
+	alarms = parseFlexAlarms(hmiAlarmsIn, *connectionName, *hmiAlarmsFilename)
 
 	file, _ := json.MarshalIndent(alarms, "", " ")
 	_ = ioutil.WriteFile("alarms.json", file, 0666)
