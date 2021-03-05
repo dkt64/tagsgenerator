@@ -21,11 +21,11 @@ import (
 // CsvAlarm - typ przechowujący dane o alarmach
 // ================================================================================================
 type CsvAlarm struct {
-	Number int
-	Tag    string
-	Index  int
-	BitNr  int
-	Texts  []string
+	Number  int
+	TagName string
+	Index   int
+	BitNr   int
+	Texts   []string
 }
 
 // Alarms - typ przechowujący dane o alarmach
@@ -40,15 +40,37 @@ type Alarms struct {
 
 var alarms Alarms
 
-// Tag - tagi - odwzorowanie linii taga w wartości
+// CsvTag - typ przechowujący dane o alarmach
 // ================================================================================================
-type Tag struct {
+type CsvTag struct {
+	TagName string
+	Index   int
+	Size    int
+	BitNr   int
+	Texts   []string
+}
+
+// Tags - typ przechowujący dane o alarmach
+// ================================================================================================
+type Tags struct {
+	ConnectionName string
+	Timestamp      int64
+	SourceFilename string
+	SourceInfo     string
+	Tags           []CsvTag
+}
+
+var tags Tags
+
+// KepTag - tagi - odwzorowanie linii taga w wartości
+// ================================================================================================
+type KepTag struct {
 	Type          string
 	StartingIndex int
 	Size          int
 }
 
-var tags []Tag
+var kepTags []KepTag
 
 // Symbol - typ przechowujący dane o symbolu
 // ================================================================================================
@@ -291,31 +313,52 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 			if len(fields) > 2 {
 				subFields := strings.Split(fields[2], " ")
 
-				if len(subFields) > 1 {
-					sFieldPer = subFields[0] + subFields[1]
-					// fmt.Println(sFieldPer)
-				}
-				if len(subFields) > 1 {
-					sNr = subFields[1]
-					// fmt.Println(sFieldPer)
-				}
-				if len(subFields) > 2 {
-					sFieldsTyp = subFields[2]
-					// fmt.Println(sFieldsTyp)
-				}
-				if len(subFields) > 3 {
-					add = subFields[3]
-					// fmt.Println(add)
+				if len(subFields) > 0 {
 
-					addHILO := strings.Split(add, ".")
+					if subFields[0] == "DB" {
+						// ----------------------------------------------------
+						// Jeżeli to DB to tak
+						// ----------------------------------------------------
 
-					if len(addHILO) > 0 {
-						sFieldAddHI = addHILO[0]
+						if len(subFields) > 1 {
+							sFieldPer = subFields[0] + subFields[1]
+							// fmt.Println(sFieldPer)
+						}
+						if len(subFields) > 1 {
+							sNr = subFields[1]
+							// fmt.Println(sNr)
+						}
+						if len(subFields) > 2 {
+							sFieldsTyp = subFields[2]
+							// fmt.Println(sFieldsTyp)
+						}
+						if len(subFields) > 3 {
+							add = subFields[3]
+							// fmt.Println(add)
+
+							addHILO := strings.Split(add, ".")
+
+							if len(addHILO) > 0 {
+								sFieldAddHI = addHILO[0]
+							}
+							if len(addHILO) > 1 {
+								sFieldAddLO = addHILO[1]
+							}
+
+						}
+
+					} else {
+
+						// ----------------------------------------------------
+						// Jeżeli nie DB to tak
+						// ----------------------------------------------------
+
+						// if len(subFields) > 1 {
+						// 	sFieldPer = subFields[0] + subFields[1]
+						// 	// fmt.Println(sFieldPer)
+						// }
+
 					}
-					if len(addHILO) > 1 {
-						sFieldAddLO = addHILO[1]
-					}
-
 				}
 			}
 			if len(fields) > 5 {
@@ -356,13 +399,13 @@ func prepPLCImageBlocks(image [65536]byte, name string, blockSize int, freq int)
 		if found {
 			var line string
 
-			var newTag Tag
+			var newTag KepTag
 
 			newTag.Type = name
 			newTag.StartingIndex = imagePtr1
 			newTag.Size = imagePtr2
 
-			tags = append(tags, newTag)
+			kepTags = append(kepTags, newTag)
 
 			if !strings.Contains(name, "DB") {
 				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq*2)
@@ -487,6 +530,7 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
 		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, "1", sComment}
 
+		// fmt.Println("PLC")
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
 		// fmt.Println("AddressHI :", sAddHI)
@@ -495,6 +539,7 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 		// fmt.Println("Comment   :", sComment)
 
 		symbols = append(symbols, newSymbol)
+
 	}
 
 	// Wypełnienie obrazów
@@ -514,12 +559,13 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sSize, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
 		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sSize, sComment}
 
-		// fmt.Println("Symbol    :", sSymbol)
-		// fmt.Println("Peripheral:", sPer)
-		// fmt.Println("AddressHI :", sAddHI)
-		// fmt.Println("AddressLO :", sAddLO)
-		// fmt.Println("Type      :", sType)
-		// fmt.Println("Comment   :", sComment)
+		fmt.Println("HMI")
+		fmt.Println("Symbol    :", sSymbol)
+		fmt.Println("Peripheral:", sPer)
+		fmt.Println("AddressHI :", sAddHI)
+		fmt.Println("AddressLO :", sAddLO)
+		fmt.Println("Type      :", sType)
+		fmt.Println("Comment   :", sComment)
 
 		symbols = append(symbols, newSymbol)
 	}
@@ -580,8 +626,39 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 	return
 }
 
-// ReadCsv accepts a file and returns its content as a multi-dimentional type
-// with lines and each column. Only parses to string type.
+// generateTagsFromSymbols - Przetworzenie symboli na wskaźniki do tablicy tagów
+// ================================================================================================
+func generateTagsFromSymbols(connName string) {
+
+	tags.ConnectionName = connName
+	tags.Timestamp = time.Now().Unix()
+
+	if len(symbols) > 0 {
+
+		for _, sym := range symbols {
+			// fmt.Println(sym.sSymbol, sym.sType, sym.sPer, sym.sAddHI, sym.sAddLO, sym.sSize)
+
+			if sym.sType != "FB" && sym.sType != "DB" && sym.sType != "FC" && sym.sType != "TIMER" && sym.sType != "UDT" {
+
+				var comment []string
+				comment = append(comment, sym.sComment)
+
+				data := CsvTag{
+					TagName: sym.sSymbol,
+					Texts:   comment,
+					// Texts:   texts,
+					// TagName: tagName,
+					// Index:   triggerByte,
+					// BitNr:   bitNr,
+				}
+
+				tags.Tags = append(tags.Tags, data)
+			}
+		}
+	}
+}
+
+// parseFlexAlarms - Przetworzenie alarmów z WinccFlex na wskaźniki do tablicy tagów
 // ================================================================================================
 func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 
@@ -619,7 +696,7 @@ func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 							// szukamy tego bitu w tablicy wygenerowanej dla PLC
 							// -----------------------------------------------
 
-							for _, t := range tags {
+							for _, t := range kepTags {
 
 								tagAddress, _ := strconv.Atoi(sym.sAddHI)
 
@@ -649,11 +726,11 @@ func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 
 										// dodajemy do globalnej tablicy alarmów
 										data := CsvAlarm{
-											Number: alarmNumber,
-											Texts:  texts,
-											Tag:    tagName,
-											Index:  triggerByte,
-											BitNr:  bitNr,
+											Number:  alarmNumber,
+											Texts:   texts,
+											TagName: tagName,
+											Index:   triggerByte,
+											BitNr:   bitNr,
 										}
 										tempAlarms.Alarms = append(tempAlarms.Alarms, data)
 										// -----------------------------------------------
@@ -689,16 +766,16 @@ func fileExists(filename string) bool {
 func main() {
 
 	fmt.Println("=============================================================================================")
-	fmt.Println("==                         Siemens PLC tags generator / DTP                                ==")
-	fmt.Println("==    Generator of tags in form of csv configuration files for KepServerEX6 + IoTGateway   ==")
+	fmt.Println("==                         Siemens PLC Tags generator / DTP                                ==")
+	fmt.Println("==    Generator of Tags in form of csv configuration files for KepServerEX6 + IoTGateway   ==")
 	fmt.Println("=============================================================================================")
 	fmt.Println()
 
-	hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI tags table filename (input)")
+	hmiTagsFilename := flag.String("t", "", "WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI Tags table filename (input)")
 	hmiAlarmsFilename := flag.String("a", "", "WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)")
 	symFilename := flag.String("s", "", "Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)")
-	plcFilename := flag.String("p", "plc.csv", "PLC tags filename (output)")
-	iotFilename := flag.String("i", "iot.csv", "IoT Gateway tags filename (output)")
+	plcFilename := flag.String("p", "plc.csv", "PLC Tags filename (output)")
+	iotFilename := flag.String("i", "iot.csv", "IoT Gateway Tags filename (output)")
 	connectionName := flag.String("c", "SiemensTCPIP.PLC", "Connection description")
 	blockSize := flag.Int("b", 8, "Block size in [bytes]")
 	pollFreq := flag.Int("f", 100, "Frequency of polling in [ms]")
@@ -715,7 +792,7 @@ func main() {
 	}
 	if *hmiTagsFilename == "" {
 		if fileExists("Tags.csv") {
-			fmt.Println("Found Tags.csv file - WinCCflexible tags export file")
+			fmt.Println("Found Tags.csv file - WinCCflexible Tags export file")
 			*hmiTagsFilename = "Tags.csv"
 		}
 	}
@@ -755,5 +832,14 @@ func main() {
 	// for _, a := range alarms {
 	// 	fmt.Println(a)
 	// }
+
+	// tagi step7+wincc_flexible
+	// ----------------------------------------------
+	fmt.Println("Generating tags description file: tags.json ...")
+
+	generateTagsFromSymbols(*connectionName)
+
+	file, _ := json.MarshalIndent(tags, "", " ")
+	_ = ioutil.WriteFile("tags.json", file, 0666)
 
 }
