@@ -44,8 +44,8 @@ var alarms Alarms
 // ================================================================================================
 type CsvTag struct {
 	TagName string
-	Index   int
 	Size    int
+	Index   int
 	BitNr   int
 	Texts   []string
 }
@@ -222,7 +222,7 @@ func parseAddress(s string) (letters, numbers string) {
 
 // decodeS7PLCSymLine - rozdzielenie pól w linii
 // ================================================================================================
-func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldSize string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldCom string) {
+func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer string, sFieldNr string, sFieldAddHI string, sFieldAddLO string, sFieldsTyp string, sFieldSize string, sFieldCom string) {
 
 	if strings.Contains(filename, ".asc") {
 
@@ -260,8 +260,48 @@ func decodeS7PLCSymLine(s string, filename string) (sFieldSym string, sFieldPer 
 		if len(addHILO) > 0 {
 			sFieldAddHI = addHILO[0]
 		}
+
 		if len(addHILO) > 1 {
 			sFieldAddLO = addHILO[1]
+		}
+
+		if sFieldPer == "I" {
+			sFieldSize = "0"
+		}
+		if sFieldPer == "IB" {
+			sFieldSize = "1"
+		}
+		if sFieldPer == "IW" {
+			sFieldSize = "2"
+		}
+		if sFieldPer == "ID" {
+			sFieldSize = "4"
+		}
+
+		if sFieldPer == "M" {
+			sFieldSize = "0"
+		}
+		if sFieldPer == "MB" {
+			sFieldSize = "1"
+		}
+		if sFieldPer == "MW" {
+			sFieldSize = "2"
+		}
+		if sFieldPer == "MD" {
+			sFieldSize = "4"
+		}
+
+		if sFieldPer == "Q" {
+			sFieldSize = "0"
+		}
+		if sFieldPer == "QB" {
+			sFieldSize = "1"
+		}
+		if sFieldPer == "QW" {
+			sFieldSize = "2"
+		}
+		if sFieldPer == "QD" {
+			sFieldSize = "4"
 		}
 
 	}
@@ -472,7 +512,10 @@ func addSymToDBImage(sym Symbol) {
 			if ErrCheck(err) && si <= 256 && si > 1 {
 				size = byte(si)
 			} else {
-				if sym.sType == "DBX" || sym.sType == "DBB" {
+				if sym.sType == "DBX" {
+					size = 1
+				}
+				if sym.sType == "DBB" {
 					size = 1
 				}
 				if sym.sType == "DBW" {
@@ -483,19 +526,19 @@ func addSymToDBImage(sym Symbol) {
 				}
 			}
 
-			if size > 0 {
+			// if size > 0 {
 
-				if !found {
-					var newBlock DBBlock
-					newBlock.nr = nr
-					dbBlocks = append(dbBlocks, newBlock)
-					index = len(dbBlocks) - 1
-					// fmt.Println("Nowy blok " + sym.sPer)
-				}
-
-				// fmt.Println("Adres DB" + sym.sNr + "." + sym.sAddHI)
-				dbBlocks[index].tab[adr] = byte(size)
+			if !found {
+				var newBlock DBBlock
+				newBlock.nr = nr
+				dbBlocks = append(dbBlocks, newBlock)
+				index = len(dbBlocks) - 1
+				// fmt.Println("Nowy blok " + sym.sPer)
 			}
+
+			// fmt.Println("Adres DB" + sym.sNr + "." + sym.sAddHI)
+			dbBlocks[index].tab[adr] = byte(size)
+			// }
 		}
 	}
 }
@@ -527,19 +570,19 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 
 		line = DecodeWindows1250(line)
 
-		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sComment := decodeS7PLCSymLine(line, S7SymFilename)
-		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, "1", sComment}
+		sSymbol, sPer, _, sAddHI, sAddLO, sType, sSize, sComment := decodeS7PLCSymLine(line, S7SymFilename)
+		var newSymbol = Symbol{sSymbol, sPer, sSize, sAddHI, sAddLO, sType, sSize, sComment}
 
 		// fmt.Println("PLC")
 		// fmt.Println("Symbol    :", sSymbol)
 		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("Size      :", sSize)
 		// fmt.Println("AddressHI :", sAddHI)
 		// fmt.Println("AddressLO :", sAddLO)
 		// fmt.Println("Type      :", sType)
 		// fmt.Println("Comment   :", sComment)
 
 		symbols = append(symbols, newSymbol)
-
 	}
 
 	// Wypełnienie obrazów
@@ -559,13 +602,14 @@ func generatePLC(plcSymLine []string, hmiSymLine []string, bSize int, freq int, 
 		sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sSize, sComment := decodeFlexTagSymLine(line, FlexSymFilename)
 		var newSymbol = Symbol{sSymbol, sPer, sNr, sAddHI, sAddLO, sType, sSize, sComment}
 
-		fmt.Println("HMI")
-		fmt.Println("Symbol    :", sSymbol)
-		fmt.Println("Peripheral:", sPer)
-		fmt.Println("AddressHI :", sAddHI)
-		fmt.Println("AddressLO :", sAddLO)
-		fmt.Println("Type      :", sType)
-		fmt.Println("Comment   :", sComment)
+		// fmt.Println("HMI")
+		// fmt.Println("Symbol    :", sSymbol)
+		// fmt.Println("Peripheral:", sPer)
+		// fmt.Println("AddressHI :", sAddHI)
+		// fmt.Println("AddressLO :", sAddLO)
+		// fmt.Println("Size      :", sSize)
+		// fmt.Println("Type      :", sType)
+		// fmt.Println("Comment   :", sComment)
 
 		symbols = append(symbols, newSymbol)
 	}
@@ -643,13 +687,22 @@ func generateTagsFromSymbols(connName string) {
 				var comment []string
 				comment = append(comment, sym.sComment)
 
+				// type CsvTag struct {
+				// 	TagName string
+				// 	Size    int
+				// 	Index   int
+				// 	BitNr   int
+				// 	Texts   []string
+				// }
+
+				size, _ := strconv.Atoi(sym.sSize)
+				bitNr, _ := strconv.Atoi(sym.sAddLO)
+
 				data := CsvTag{
 					TagName: sym.sSymbol,
 					Texts:   comment,
-					// Texts:   texts,
-					// TagName: tagName,
-					// Index:   triggerByte,
-					// BitNr:   bitNr,
+					Size:    size,
+					BitNr:   bitNr,
 				}
 
 				tags.Tags = append(tags.Tags, data)
