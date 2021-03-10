@@ -25,6 +25,7 @@ type CsvAlarm struct {
 	TagName string
 	Index   int
 	BitNr   int
+	Freq    int
 	Texts   []string
 }
 
@@ -47,6 +48,7 @@ type CsvTag struct {
 	Size    int
 	Index   int
 	BitNr   int
+	Freq    int
 	Texts   []string
 }
 
@@ -688,11 +690,7 @@ func generateTagsFromSymbols(connName string) {
 				comment = append(comment, sym.sComment)
 
 				// type CsvTag struct {
-				// 	TagName string
-				// 	Size    int
 				// 	Index   int
-				// 	BitNr   int
-				// 	Texts   []string
 				// }
 
 				size, _ := strconv.Atoi(sym.sSize)
@@ -703,6 +701,7 @@ func generateTagsFromSymbols(connName string) {
 					Texts:   comment,
 					Size:    size,
 					BitNr:   bitNr,
+					Freq:    100,
 				}
 
 				tags.Tags = append(tags.Tags, data)
@@ -784,6 +783,7 @@ func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 											TagName: tagName,
 											Index:   triggerByte,
 											BitNr:   bitNr,
+											Freq:    100,
 										}
 										tempAlarms.Alarms = append(tempAlarms.Alarms, data)
 										// -----------------------------------------------
