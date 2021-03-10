@@ -452,7 +452,7 @@ func prepPLCImageBlocks(image [65536]byte, name string, blockSize int, freq int)
 			kepTags = append(kepTags, newTag)
 
 			if !strings.Contains(name, "DB") {
-				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq*2)
+				line = fmt.Sprintf("\"tab%s_%d\",\"%s%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
 			} else {
 				line = fmt.Sprintf("\"tab%s_%d\",\"%s.DBB%d[%d]\",Byte Array,1,RO,%d,,,,,,,,,,\"\",", name, imagePtr1, name, imagePtr1, imagePtr2, freq)
 			}
