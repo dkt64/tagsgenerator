@@ -25,7 +25,6 @@ type CsvAlarm struct {
 	TagName string
 	Index   int
 	BitNr   int
-	Freq    int
 	Texts   []string
 }
 
@@ -44,12 +43,15 @@ var alarms Alarms
 // CsvTag - typ przechowujący dane o alarmach
 // ================================================================================================
 type CsvTag struct {
-	TagName string
-	Size    int
-	Index   int
-	BitNr   int
-	Freq    int
-	Texts   []string
+	SymbolName      string
+	SymbolPeriph    string
+	SymbolAddressHi string
+	SymbolAddressLo string
+	Comment         string
+	TagName         string
+	Index           int
+	BitNr           int
+	Size            int
 }
 
 // Tags - typ przechowujący dane o alarmach
@@ -694,17 +696,38 @@ func generateTagsFromSymbols(connName string) {
 				// }
 
 				size, _ := strconv.Atoi(sym.sSize)
-				bitNr, _ := strconv.Atoi(sym.sAddLO)
+				loAddress, _ := strconv.Atoi(sym.sAddLO)
+				hiAddress, _ := strconv.Atoi(sym.sAddHI)
+
+				var index int
+				var name string
+
+				// szukamy tego bitu w tablicy wygenerowanej dla PLC
+				// -----------------------------------------------
+
+				for _, t := range kepTags {
+					if hiAddress >= t.StartingIndex && hiAddress < t.StartingIndex+t.Size {
+						index = hiAddress - t.StartingIndex
+						name = fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
+						break
+					}
+
+				}
 
 				data := CsvTag{
-					TagName: sym.sSymbol,
-					Texts:   comment,
-					Size:    size,
-					BitNr:   bitNr,
-					Freq:    100,
+					SymbolName:      sym.sSymbol,
+					SymbolPeriph:    sym.sPer,
+					SymbolAddressHi: sym.sAddHI,
+					SymbolAddressLo: sym.sAddLO,
+					Comment:         sym.sComment,
+					TagName:         name,
+					Size:            size,
+					BitNr:           loAddress,
+					Index:           index,
 				}
 
 				tags.Tags = append(tags.Tags, data)
+
 			}
 		}
 	}
@@ -783,7 +806,6 @@ func parseFlexAlarms(alarms []string, connName string, srcFile string) Alarms {
 											TagName: tagName,
 											Index:   triggerByte,
 											BitNr:   bitNr,
-											Freq:    100,
 										}
 										tempAlarms.Alarms = append(tempAlarms.Alarms, data)
 										// -----------------------------------------------
