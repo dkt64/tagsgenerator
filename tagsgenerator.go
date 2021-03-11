@@ -729,11 +729,30 @@ func generateTagsFromSymbols(connName string) {
 
 				found := false
 				for _, t := range kepTags {
-					if t.Type == sym.sPer && hiAddress >= t.StartingIndex && hiAddress < t.StartingIndex+t.Size {
-						index = hiAddress - t.StartingIndex
-						name = fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
-						found = true
-						break
+
+					if hiAddress >= t.StartingIndex && hiAddress < t.StartingIndex+t.Size {
+
+						if t.Type == sym.sPer ||
+							t.Type == "IB" && sym.sPer == "I" ||
+							t.Type == "IB" && sym.sPer == "IB" ||
+							t.Type == "IB" && sym.sPer == "IW" ||
+							t.Type == "IB" && sym.sPer == "ID" ||
+							t.Type == "MB" && sym.sPer == "M" ||
+							t.Type == "MB" && sym.sPer == "MB" ||
+							t.Type == "MB" && sym.sPer == "MW" ||
+							t.Type == "MB" && sym.sPer == "MD" ||
+							t.Type == "QB" && sym.sPer == "Q" ||
+							t.Type == "QB" && sym.sPer == "QB" ||
+							t.Type == "QB" && sym.sPer == "QW" ||
+							t.Type == "QB" && sym.sPer == "QD" {
+
+							// fmt.Println("Type: " + t.Type + " vs " + sym.sType + " vs " + sym.sPer)
+
+							index = hiAddress - t.StartingIndex
+							name = fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
+							found = true
+							break
+						}
 					}
 
 				}
