@@ -406,7 +406,29 @@ func decodeFlexTagSymLine(s string, filename string) (sFieldSym string, sFieldPe
 				}
 			}
 			if len(fields) > 5 {
-				sFieldSize = fields[5]
+				// Jeżeli pole bitowe to długość zero
+
+				sSize := fields[5]
+				size, _ := strconv.Atoi(sSize)
+
+				if size > 4 {
+					sFieldSize = fields[5]
+				} else {
+					if sFieldsTyp == "DBX" {
+						sFieldSize = "0"
+					}
+					if sFieldsTyp == "DBB" {
+						sFieldSize = "1"
+					}
+					if sFieldsTyp == "DBW" {
+						sFieldSize = "2"
+					}
+					if sFieldsTyp == "DBD" {
+						sFieldSize = "4"
+					}
+				}
+
+				// fmt.Println(sFieldsTyp)
 				// fmt.Println(sFieldSize)
 			}
 			if len(fields) > 19 {
@@ -705,28 +727,33 @@ func generateTagsFromSymbols(connName string) {
 				// szukamy tego bitu w tablicy wygenerowanej dla PLC
 				// -----------------------------------------------
 
+				found := false
 				for _, t := range kepTags {
-					if hiAddress >= t.StartingIndex && hiAddress < t.StartingIndex+t.Size {
+					if t.Type == sym.sPer && hiAddress >= t.StartingIndex && hiAddress < t.StartingIndex+t.Size {
 						index = hiAddress - t.StartingIndex
 						name = fmt.Sprintf("tab%s_%d", t.Type, t.StartingIndex)
+						found = true
 						break
 					}
 
 				}
 
-				data := CsvTag{
-					SymbolName:      sym.sSymbol,
-					SymbolPeriph:    sym.sPer,
-					SymbolAddressHi: sym.sAddHI,
-					SymbolAddressLo: sym.sAddLO,
-					Comment:         sym.sComment,
-					TagName:         name,
-					Size:            size,
-					BitNr:           loAddress,
-					Index:           index,
-				}
+				if found {
+					data := CsvTag{
+						SymbolName:      sym.sSymbol,
+						SymbolPeriph:    sym.sPer,
+						SymbolAddressHi: sym.sAddHI,
+						SymbolAddressLo: sym.sAddLO,
+						Comment:         sym.sComment,
+						TagName:         name,
+						Size:            size,
+						BitNr:           loAddress,
+						Index:           index,
+					}
 
-				tags.Tags = append(tags.Tags, data)
+					tags.Tags = append(tags.Tags, data)
+
+				}
 
 			}
 		}
