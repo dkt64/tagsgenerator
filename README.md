@@ -2,8 +2,11 @@
 Tags generator is a commandline tool for **Siemens + Kepware** (with IoT Gateway) tags management.
 ## Usage
 Export symbols, tags and alarms using your **Siemens Step7** or **TIA Portal** software.
+
 Copy exported files into the same folder as tagsgenerator and run it without parameters.
+
 Import newely generated files **_plc.csv_** and **_iot.csv_** (tag tables) in **Kepware KepServerEX**.
+
 
 Additionally, new files **_tags.json_** and **_alarms.json_** are created. They define a pointers for exported tags in generated tag tables.
 
