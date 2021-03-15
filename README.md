@@ -7,13 +7,12 @@ Copy exported files into the same folder as tagsgenerator and run it without par
 
 Import newely generated files **_plc.csv_** and **_iot.csv_** (tag tables) in **Kepware KepServerEX**.
 
-
 Additionally, new files **_tags.json_** and **_alarms.json_** are created. They define a pointers for exported tags in generated tag tables.
 
 Optional parameters of tagsgenerator:
 * -a string
 
-WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)
+> WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)
 
 * -b int
 
