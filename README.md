@@ -9,18 +9,33 @@ Additionally, new files **_tags.json_** and **_alarms.json_** are created. They 
 
 Optional parameters of tagsgenerator:
 * -a string
+
 WinCCflexible (Alarms.csv) or TIA Portal (HMIAlarms.xlsx) alarms table filename (input)
+
 * -b int
+
 Block size in [bytes] (default 8)
+
 * -c string
+
 Connection description (default "SiemensTCPIP.PLC")
+
 * -f int
+
 Frequency of polling in [ms] (default 100)
+
 * -i string
+
 IoT Gateway Tags filename (output) (default "iot.csv")
+
 * -p string
+
 PLC Tags filename (output) (default "plc.csv")
+
 * -s string
+
 Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)
+
 * -t string
+
 WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI Tags table filename (input)
