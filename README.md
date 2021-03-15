@@ -16,28 +16,28 @@ Optional parameters of tagsgenerator:
 
 * -b int
 
-Block size in [bytes] (default 8)
+> Block size in [bytes] (default 8)
 
 * -c string
 
-Connection description (default "SiemensTCPIP.PLC")
+> Connection description (default "SiemensTCPIP.PLC")
 
 * -f int
 
-Frequency of polling in [ms] (default 100)
+> Frequency of polling in [ms] (default 100)
 
 * -i string
 
-IoT Gateway Tags filename (output) (default "iot.csv")
+> IoT Gateway Tags filename (output) (default "iot.csv")
 
 * -p string
 
-PLC Tags filename (output) (default "plc.csv")
+> PLC Tags filename (output) (default "plc.csv")
 
 * -s string
 
-Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)
+> Step7 (Symbols.asc) or TIA Portal (PLCTags.sdf) symbol table filename (input)
 
 * -t string
 
-WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI Tags table filename (input)
+> WinCCflexible (Tags.csv) or TIA Portal (HMITags.xlsx) HMI Tags table filename (input)
